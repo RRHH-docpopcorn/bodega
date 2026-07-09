@@ -2725,10 +2725,10 @@ function borrarTodo() {
 // ══════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════
-// SINCRONIZACIÓN GOOGLE SHEETS
+// SINCRONIZACIÓN SUPABASE
 // ══════════════════════════════════════════════════
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxON7JrNsfhfr-faBW9wT8U-aGLs_DZTVniloHq_0yagWE61RCgIokAT1_WZsgLPA87AA/exec';
-function gasUrl() { return GAS_URL; }
+const SB_URL = 'https://krgvkyebbwdemdoqiljd.supabase.co';
+const SB_KEY = 'sb_publishable_-Rgafmg2iGPX3XXM0tpn7Q_eMzcOyxM';
 
 function setSyncStatus(status, msg) {
   const ind = document.getElementById('sync-indicator');
@@ -2744,145 +2744,82 @@ function setSyncStatus(status, msg) {
   ind.textContent = msg || s.text;
 }
 
-// GET usando JSONP — única forma que funciona con Apps Script desde navegador
-function jsonpGet(params) {
-  return new Promise((resolve, reject) => {
-    const cbName = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    const timeout = setTimeout(() => {
-      delete window[cbName];
-      const script = document.getElementById(cbName);
-      if (script) script.remove();
-      reject(new Error('Timeout'));
-    }, 30000);
-
-    window[cbName] = function(data) {
-      clearTimeout(timeout);
-      delete window[cbName];
-      const script = document.getElementById(cbName);
-      if (script) script.remove();
-      resolve(data);
-    };
-
-    params.callback = cbName;
-    const qs = new URLSearchParams(params).toString();
-    const script = document.createElement('script');
-    script.id = cbName;
-    script.src = GAS_URL + '?' + qs;
-    script.onerror = () => {
-      clearTimeout(timeout);
-      delete window[cbName];
-      script.remove();
-      reject(new Error('Script load error'));
-    };
-    document.head.appendChild(script);
-  });
+function cleanRecord(r) {
+  const c = {};
+  Object.entries(r).forEach(([k,v]) => { if (v !== null && v !== 'null' && v !== undefined && v !== '') c[k] = v; });
+  return c;
 }
 
-// Escritura via JSONP GET — mismo mecanismo que lecturas (confirmado funcionando)
-async function jsonpPost(payload) {
-  return new Promise((resolve, reject) => {
-    const cbName = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    
-    const timeout = setTimeout(() => {
-      delete window[cbName];
-      const s = document.getElementById(cbName);
-      if (s) s.remove();
-      // Asumir éxito si timeout — el dato probablemente llegó
-      resolve({ ok: true });
-    }, 15000);
-
-    window[cbName] = function(data) {
-      clearTimeout(timeout);
-      delete window[cbName];
-      const s = document.getElementById(cbName);
-      if (s) s.remove();
-      resolve(data || { ok: true });
-    };
-
-    // Serializar payload como JSON y encodear
-    const json = JSON.stringify(payload);
-    const encoded = encodeURIComponent(json);
-    
-    const url = GAS_URL 
-      + '?callback=' + encodeURIComponent(cbName)
-      + '&accion=' + encodeURIComponent(payload.accion || '')
-      + '&local=' + encodeURIComponent(payload.local || '')
-      + '&tabla=' + encodeURIComponent(payload.tabla || '')
-      + '&data=' + encoded;
-
-    const script = document.createElement('script');
-    script.id = cbName;
-    script.src = url;
-    // En caso de error de carga, asumir éxito optimista igual
-    script.onerror = () => {
-      clearTimeout(timeout);
-      delete window[cbName];
-      script.remove();
-      console.warn('JSONP write onerror — asumiendo éxito optimista');
-      resolve({ ok: true });
-    };
-    document.head.appendChild(script);
+async function sbFetch(url, options) {
+  const resp = await fetch(url, {
+    ...options,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
   });
-}
-
-async function gasGet(params) {
-  try {
-    const data = await jsonpGet(params);
-    if (data && data.error) throw new Error(data.error);
-    return data;
-  } catch(e) {
-    setSyncStatus('error');
-    console.warn('GAS GET error:', e.message);
-    return null;
+  if (!resp.ok) {
+    const err = await resp.text();
+    if (err.includes('23505')) return { ok: true };
+    throw new Error(err.slice(0, 200));
   }
+  const ct = resp.headers.get('content-type') || '';
+  return ct.includes('json') ? resp.json() : { ok: true };
+}
+
+async function sbSelect(tabla, local) {
+  let url = `${SB_URL}/rest/v1/${tabla}?select=*&limit=1000`;
+  if (local) url += `&local=eq.${encodeURIComponent(local)}`;
+  return sbFetch(url, { method: 'GET' });
+}
+
+async function sbUpsertMany(tabla, records) {
+  if (!records || records.length === 0) return;
+  return sbFetch(`${SB_URL}/rest/v1/${tabla}`, {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(records.map(cleanRecord))
+  });
+}
+
+async function sbDelete(tabla, id) {
+  return sbFetch(`${SB_URL}/rest/v1/${tabla}?id=eq.${id}`, { method: 'DELETE' });
 }
 
 async function gasPost(payload) {
   try {
     setSyncStatus('syncing');
-    await jsonpPost(payload);
+    const { accion, tabla, record, records, id } = payload;
+    if (accion === 'insertar') {
+      await sbUpsertMany(tabla, records || [record]);
+    } else if (accion === 'eliminar') {
+      await sbDelete(tabla, id);
+    } else if (accion === 'reemplazar_tabla') {
+      if (records && records.length > 0) await sbUpsertMany(tabla, records);
+    }
     setSyncStatus('ok');
     return { ok: true };
   } catch(e) {
     setSyncStatus('error');
-    console.warn('GAS POST error:', e.message);
+    console.warn('Supabase write error:', e.message);
     return null;
   }
 }
 
-// Subir datos locales → Sheets
-async function jsonpPostChunks(accion, local, tabla, records) {
-  const CHUNK = 5;
-  for (let i = 0; i < records.length; i += CHUNK) {
-    const chunk = records.slice(i, i + CHUNK);
-    await jsonpPost({ accion, local, tabla, records: chunk });
-    await new Promise(r => setTimeout(r, 400));
-  }
-}
-
-// Bajar datos Sheets → local
 async function bajarDatosDesdeSheets(local) {
   setSyncStatus('syncing');
   try {
-    const dataInsumos = await gasGet({ accion:'leer', tabla:'insumos', local:'Plaza Oeste' });
-    if (dataInsumos && dataInsumos.records && dataInsumos.records.length > 0) {
-      DB.insumos = dataInsumos.records.filter(r => r && r.id);
+    const insumos = await sbSelect('insumos');
+    if (Array.isArray(insumos) && insumos.length > 0) {
+      DB.insumos = insumos;
       guardarDB('insumos');
     }
-    const tablas = ['ingresos','salidas','inventario','consumoEsperado'];
-    for (const tabla of tablas) {
-      let records = [];
-      if (local) {
-        const data = await gasGet({ accion:'leer', tabla, local });
-        if (data && data.records) records = data.records;
-      } else {
-        const dataPO  = await gasGet({ accion:'leer', tabla, local:'Plaza Oeste' });
-        const dataPAJ = await gasGet({ accion:'leer', tabla, local:'Pajaritos' });
-        if (dataPO  && dataPO.records)  records = [...records, ...dataPO.records];
-        if (dataPAJ && dataPAJ.records) records = [...records, ...dataPAJ.records];
-      }
-      if (records.length > 0) {
-        DB[tabla] = records.filter(r => r && r.id);
+    for (const tabla of ['ingresos','salidas','inventario']) {
+      const records = await sbSelect(tabla, local || null);
+      if (Array.isArray(records) && records.length > 0) {
+        DB[tabla] = records;
         guardarDB(tabla);
       }
     }
@@ -2890,16 +2827,12 @@ async function bajarDatosDesdeSheets(local) {
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
-      renderDashboard();
-      if (document.getElementById('tab-stock')?.classList.contains('active')) renderStock();
-      if (document.getElementById('tab-config')?.classList.contains('active')) renderConfigInsumos();
-      if (document.getElementById('tab-salidas')?.classList.contains('active')) filtrarSalidas();
-      if (document.getElementById('tab-ingresos')?.classList.contains('active')) filtrarIngresos();
-      if (document.getElementById('tab-inventario')?.classList.contains('active')) filtrarInventario();
+      renderDashboard(); renderStock(); renderConfigInsumos();
+      filtrarSalidas(); filtrarIngresos(); filtrarInventario();
     }
   } catch(e) {
     setSyncStatus('error');
-    toast('\u26A0\uFE0F Error al bajar datos', true);
+    console.warn('Supabase read error:', e.message);
   }
 }
 
@@ -2908,50 +2841,49 @@ async function sincronizarDesdeSheets(local) {
   await bajarDatosDesdeSheets(local || '');
 }
 
-function iniciarAutoSync(local) {
-  let sincronizoExitoso = false;
+async function subirDatosASheets() {
+  setSyncStatus('syncing');
+  try {
+    await sbUpsertMany('insumos', DB.insumos);
+    for (const tabla of ['ingresos','salidas','inventario']) {
+      if (DB[tabla].length > 0) await sbUpsertMany(tabla, DB[tabla]);
+    }
+    setSyncStatus('ok');
+    toast('✅ Datos subidos a Supabase');
+  } catch(e) {
+    setSyncStatus('error');
+    toast('⚠️ Error: ' + e.message, true);
+  }
+}
 
-  async function intentarSync() {
+function iniciarAutoSync(local) {
+  const t = setInterval(async () => {
     try {
       await bajarDatosDesdeSheets(local || '');
-      sincronizoExitoso = true;
-    } catch(e) {
-      console.warn('Sync falló, reintentando...');
-    }
-  }
-
-  // Intentar cada 3 segundos hasta que funcione
-  const intervaloInicial = setInterval(async () => {
-    if (sincronizoExitoso) {
-      clearInterval(intervaloInicial);
-      // Una vez que funciona, sync normal cada 10s
+      clearInterval(t);
       setInterval(() => bajarDatosDesdeSheets(local || ''), 10000);
-    } else {
-      await intentarSync();
-    }
+    } catch(e) {}
   }, 3000);
 }
 
-
-function guardarGasUrl() {
-  const url = document.getElementById('cfg-gas-url').value.trim();
-  window._gasUrl = url;
-  localStorage.setItem('docpopcorn_gas_url', url);
-  document.getElementById('cfg-gas-status').textContent = url ? '✅ URL guardada' : '';
-}
-
-async function testConexion() {
-  const st = document.getElementById('cfg-gas-status');
-  st.textContent = '⏳ Probando conexión...';
-  const data = await gasGet({ accion: 'ping' });
-  if (data && data.ok) {
-    st.textContent = '✅ Conexión exitosa con Google Sheets';
+function gasUrl() { return ''; }
+function gasGet() { return Promise.resolve(null); }
+function jsonpPost() { return Promise.resolve({ ok: true }); }
+function jsonpPostChunks() { return Promise.resolve(); }
+function guardarGasUrl() {}
+function carlarGasUrl() {}
+function testConexion() {
+  sbSelect('insumos').then(d => {
+    const st = document.getElementById('cfg-gas-status');
+    if (st) st.textContent = Array.isArray(d) ? '✅ Conectado a Supabase (' + d.length + ' insumos)' : '❌';
     setSyncStatus('ok');
-  } else {
-    st.textContent = '❌ No se pudo conectar. Verifica la URL.';
+  }).catch(e => {
+    const st = document.getElementById('cfg-gas-status');
+    if (st) st.textContent = '❌ ' + e.message;
     setSyncStatus('error');
-  }
+  });
 }
+
 
 function cargarGasUrl() {
   const url = localStorage.getItem('docpopcorn_gas_url') || '';
