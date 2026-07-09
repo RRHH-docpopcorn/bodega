@@ -2837,7 +2837,6 @@ async function bajarDatosDesdeSheets(local) {
 }
 
 async function sincronizarDesdeSheets(local) {
-  await subirDatosASheets();
   await bajarDatosDesdeSheets(local || '');
 }
 
