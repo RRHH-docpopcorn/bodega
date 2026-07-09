@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual Jefe de Local — Doc Pop Corn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0F0F0F;
+    color: #F0F0F0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .header {
+    background: #1A1A1A;
+    border-bottom: 3px solid #F5C800;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .header-logo { font-size: 28px; font-weight: 900; color: #F5C800; }
+  .header-logo span { color: #F0F0F0; font-weight: 400; }
+  .header-sub { font-size: 13px; color: #888; margin-top: 4px; }
+  .header-badge {
+    display: inline-block;
+    background: #1A9E5F;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-top: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .main { padding: 0 16px 40px; max-width: 560px; margin: 0 auto; }
+  .intro {
+    background: #1A1A1A;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border-left: 4px solid #1A9E5F;
+  }
+  .intro p { color: #CCC; font-size: 14px; }
+  .seccion { margin-top: 28px; }
+  .seccion-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #1A9E5F;
+    color: #fff;
+    font-weight: 900;
+    font-size: 16px;
+    border-radius: 50%;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  .seccion-titulo {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .seccion-icon { font-size: 20px; margin-right: 8px; }
+  .pantalla {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .pantalla-header {
+    background: #1A1A1A;
+    border-bottom: 2px solid #F5C800;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pantalla-logo { font-size: 14px; font-weight: 800; color: #F5C800; }
+  .pantalla-logo span { color: #F0F0F0; font-weight: 400; }
+  .pantalla-badge-green {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-left: auto;
+    background: rgba(26,158,95,0.2);
+    color: #2ECC71;
+  }
+  .pantalla-tabs {
+    display: flex;
+    background: #1A1A1A;
+    border-bottom: 1px solid #333;
+    overflow-x: auto;
+    padding: 0 8px;
+  }
+  .tab {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+  }
+  .tab.active { color: #F5C800; border-bottom-color: #F5C800; }
+  .pantalla-body { padding: 14px; }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .kpi {
+    background: #1A1A1A;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+  }
+  .kpi-val { font-size: 24px; font-weight: 900; }
+  .kpi-label { font-size: 10px; color: #888; text-transform: uppercase; margin-top: 2px; }
+  .kpi-green .kpi-val { color: #2ECC71; }
+  .kpi-amber .kpi-val { color: #F39C12; }
+  .kpi-red .kpi-val { color: #E74C3C; }
+  .kpi-yellow .kpi-val { color: #F5C800; }
+  .tabla-sim {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 8px;
+  }
+  .tabla-sim th {
+    background: #2A2A2A;
+    color: #888;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+  .tabla-sim td { padding: 7px 8px; border-top: 1px solid #2A2A2A; color: #DDD; }
+  .chip-po { display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(245,200,0,0.15);color:#F5C800; }
+  .chip-paj { display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(26,158,95,0.15);color:#2ECC71; }
+  .semaforo-ok { color: #2ECC71; font-weight: 700; font-size: 11px; }
+  .semaforo-bajo { color: #F39C12; font-weight: 700; font-size: 11px; }
+  .semaforo-rojo { color: #E74C3C; font-weight: 700; font-size: 11px; }
+  .alerta-strip {
+    background: rgba(224,58,47,0.1);
+    border: 1px solid rgba(224,58,47,0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #E74C3C;
+    margin-bottom: 6px;
+  }
+  .alerta-strip-amber {
+    background: rgba(243,156,18,0.1);
+    border: 1px solid rgba(243,156,18,0.3);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: #F39C12;
+    margin-bottom: 6px;
+  }
+  .paso {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #222;
+  }
+  .paso:last-child { border-bottom: none; }
+  .paso-num {
+    width: 24px; height: 24px;
+    background: #333;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #1A9E5F;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .paso-texto { font-size: 14px; color: #CCC; }
+  .paso-texto strong { color: #F0F0F0; }
+  .tip {
+    background: rgba(26,158,95,0.08);
+    border-left: 3px solid #1A9E5F;
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #CCC;
+    margin: 12px 0;
+  }
+  .alerta {
+    background: rgba(224,58,47,0.1);
+    border: 1px solid rgba(224,58,47,0.3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #E74C3C;
+    margin: 8px 0;
+  }
+  .divider { height: 1px; background: #222; margin: 24px 0; }
+  .link-box {
+    background: #1A1A1A; border: 1px solid #333; border-radius: 8px;
+    padding: 14px; margin: 12px 0; text-align: center;
+  }
+  .link-box .link-label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .link-box .link-url { font-size: 13px; color: #F5C800; word-break: break-all; font-weight: 600; }
+  .campo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .campo-grupo { margin-bottom: 8px; }
+  .campo-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 4px; }
+  .campo-input { background: #2A2A2A; border: 1px solid #333; border-radius: 6px; padding: 8px 10px; font-size: 13px; color: #F0F0F0; width: 100%; }
+  .campo-input.active { border-color: #F5C800; }
+  .btn-pantalla { background: #F5C800; color: #000; font-weight: 800; font-size: 14px; padding: 12px; border-radius: 8px; text-align: center; margin-top: 12px; }
+  .progress-bar-wrap { background: #2A2A2A; border-radius: 99px; height: 6px; margin-top: 4px; }
+  .progress-bar { height: 100%; border-radius: 99px; }
+  .pb-green { background: #2ECC71; }
+  .pb-amber { background: #F39C12; }
+  .pb-red { background: #E74C3C; }
+  .password-box {
+    background: #1A1A1A;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    margin: 12px 0;
+  }
+  .password-input {
+    background: #2A2A2A;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 20px;
+    color: #F0F0F0;
+    width: 100%;
+    text-align: center;
+    letter-spacing: 8px;
+    margin: 10px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">🍿 Doc<span> Pop Corn</span></div>
+  <div class="header-sub">Sistema de Control de Bodega</div>
+  <div class="header-badge">👔 Manual del Jefe de Local</div>
+</div>
+
+<div class="main">
+
+  <div class="intro">
+    <p>Como jefe de local tienes acceso a <strong>ambos locales</strong> y puedes ver el dashboard consolidado, controlar el stock en vivo y supervisar todos los movimientos de bodega.</p>
+  </div>
+
+  <!-- ACCESO -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">1</span>
+      <span class="seccion-icon">🔐</span> Cómo entrar
+    </div>
+
+    <div class="link-box">
+      <div class="link-label">Tu link (jefe de local)</div>
+      <div class="link-url">dpc-bodega.netlify.app/bodega-jefe.html</div>
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin:10px 0 8px;">Al abrir te pide una contraseña:</p>
+
+    <div class="password-box">
+      <div style="font-size:13px;color:#888;margin-bottom:8px;">Control de Bodega · Acceso restringido</div>
+      <input class="password-input" type="text" value="••••••••" readonly>
+      <div class="btn-pantalla">Entrar</div>
+    </div>
+
+    <div class="tip">🔑 La contraseña te la entrega Sindy directamente.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- DASHBOARD -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">2</span>
+      <span class="seccion-icon">📊</span> Dashboard — Vista general
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Lo primero que ves al entrar. Muestra el resumen de <strong>ambos locales</strong> en tiempo real.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge-green">Jefe de local</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab active">📊 Dashboard</div>
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div class="kpi-grid">
+          <div class="kpi kpi-yellow"><div class="kpi-val">62</div><div class="kpi-label">Insumos activos</div></div>
+          <div class="kpi kpi-green"><div class="kpi-val">45</div><div class="kpi-label">Stock OK</div></div>
+          <div class="kpi kpi-amber"><div class="kpi-val">12</div><div class="kpi-label">Stock bajo</div></div>
+          <div class="kpi kpi-red"><div class="kpi-val">5</div><div class="kpi-label">Crítico</div></div>
+        </div>
+        <div class="alerta-strip">🔴 <strong>Galletas Oreo</strong> · Plaza Oeste — Stock crítico</div>
+        <div class="alerta-strip-amber">⚠️ 12 insumos bajo el mínimo. Revisar pronto.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto"><strong>Rojo</strong> = actuar hoy. Llamar al proveedor o reorganizar stock entre locales.</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto"><strong>Amarillo</strong> = planificar compra esta semana.</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto"><strong>Verde</strong> = sin acción requerida.</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- STOCK EN VIVO -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">3</span>
+      <span class="seccion-icon">📦</span> Stock en vivo — Ambos locales
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Puedes filtrar por local y ver el stock estimado de cada insumo, calculado automáticamente.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge-green">Jefe de local</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📊 Dashboard</div>
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab active">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <div style="background:#2A2A2A;border-radius:6px;padding:6px 10px;font-size:11px;color:#F5C800;font-weight:700;">Plaza Oeste</div>
+          <div style="background:#1A1A1A;border-radius:6px;padding:6px 10px;font-size:11px;color:#888;">Todos los estados</div>
+        </div>
+        <div style="font-size:10px;font-weight:800;color:#F5C800;background:#1A1A1A;padding:5px 8px;border-radius:4px;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">🌽 Insumos</div>
+        <table class="tabla-sim">
+          <tr><th>Insumo</th><th>Stock est.</th><th>Días</th><th>Estado</th></tr>
+          <tr>
+            <td>Maíz Butterfly</td>
+            <td>8 Sacos</td>
+            <td>2 d.</td>
+            <td><span class="semaforo-rojo">● Crítico</span></td>
+          </tr>
+          <tr>
+            <td>Aceite de Maíz</td>
+            <td>3 Bidones</td>
+            <td>5 d.</td>
+            <td><span class="semaforo-bajo">● Bajo</span></td>
+          </tr>
+          <tr>
+            <td>Mantequilla Calo</td>
+            <td>45 Unidades</td>
+            <td>10 d.</td>
+            <td><span class="semaforo-ok">● OK</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip">💡 Usa el filtro <strong>"Todos los estados"</strong> para ver solo los Críticos y actuar rápido.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- SUPERVISAR MOVIMIENTOS -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">4</span>
+      <span class="seccion-icon">🔍</span> Supervisar movimientos
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">En las pestañas <strong>Ingresos</strong>, <strong>Salidas</strong> e <strong>Inventario</strong> puedes ver todo lo que registraron los vendedores, filtrado por local y fecha.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge-green">Jefe de local</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📊 Dashboard</div>
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab active">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <div style="background:#2A2A2A;border-radius:6px;padding:6px 10px;font-size:11px;color:#F5C800;font-weight:700;">Plaza Oeste</div>
+          <div style="background:#1A1A1A;border-radius:6px;padding:6px 10px;font-size:11px;color:#888;">Julio 2026</div>
+        </div>
+        <div style="font-size:10px;font-weight:800;color:#F5C800;background:#1A1A1A;padding:5px 8px;border-radius:4px;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">🌽 Insumos</div>
+        <table class="tabla-sim">
+          <tr><th>Fecha</th><th>Insumo</th><th>Cant.</th><th>Quien</th></tr>
+          <tr><td>08-07 10:30</td><td>Maíz Butterfly</td><td>2 Sacos</td><td>Gonzalo H.</td></tr>
+          <tr><td>08-07 09:15</td><td>Aceite de Maíz</td><td>1 Bidón</td><td>Victoria C.</td></tr>
+          <tr><td>07-07 16:20</td><td>Galletas Oreo</td><td>12 Paquetes</td><td>Javiera E.</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Selecciona el <strong>local</strong> que quieres revisar</div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Filtra por <strong>mes</strong> si quieres ver un período específico</div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Usa <strong>⬇ CSV</strong> para exportar a Excel si necesitas el detalle</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- INVENTARIO SEMANAL -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">5</span>
+      <span class="seccion-icon">📋</span> Inventario semanal
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">El inventario semanal es la base del cálculo de stock. Como jefe debes asegurarte que los vendedores lo hagan <strong>cada semana el mismo día</strong>.</p>
+
+    <div class="tip">📅 Recomendación: hacerlo los <strong>lunes por la mañana</strong>, antes de abrir. Así el stock en vivo parte desde datos frescos cada semana.</div>
+
+    <div style="margin-top:14px;">
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Confirma que los vendedores hayan hecho el conteo semanal</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Revisa en <strong>📋 Inventario</strong> que aparezcan registros de la semana actual</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Si falta algún local, pide al vendedor que lo registre antes de operar</div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- RESPONSABILIDADES -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-icon">✅</span> Checklist semanal del jefe
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+      <label style="display:flex;align-items:center;gap:12px;background:#1A1A1A;padding:12px;border-radius:8px;cursor:pointer;">
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#1A9E5F;">
+        <span style="font-size:14px;color:#CCC;">Ambos locales hicieron inventario semanal</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;background:#1A1A1A;padding:12px;border-radius:8px;cursor:pointer;">
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#1A9E5F;">
+        <span style="font-size:14px;color:#CCC;">Revisé el Dashboard y no hay alertas rojas sin atender</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;background:#1A1A1A;padding:12px;border-radius:8px;cursor:pointer;">
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#1A9E5F;">
+        <span style="font-size:14px;color:#CCC;">Los ingresos de proveedores están registrados</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;background:#1A1A1A;padding:12px;border-radius:8px;cursor:pointer;">
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#1A9E5F;">
+        <span style="font-size:14px;color:#CCC;">Revisé los insumos con más de 7 días de cobertura</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:12px;background:#1A1A1A;padding:12px;border-radius:8px;cursor:pointer;">
+        <input type="checkbox" style="width:18px;height:18px;accent-color:#1A9E5F;">
+        <span style="font-size:14px;color:#CCC;">Reporté a Sindy cualquier anomalía de stock</span>
+      </label>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:32px;padding:20px;background:#1A1A1A;border-radius:12px;">
+    <div style="font-size:24px;margin-bottom:8px;">🍿</div>
+    <div style="font-size:13px;color:#888;">Doc Pop Corn · Control de Bodega</div>
+    <div style="font-size:11px;color:#555;margin-top:4px;">Cualquier problema técnico, contacta a Sindy</div>
+  </div>
+
+</div>
+</body>
+</html>
