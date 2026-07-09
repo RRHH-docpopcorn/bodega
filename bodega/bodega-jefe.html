@@ -2675,6 +2675,11 @@ function importarCSV(event, tabla) {
     if (tabla === 'ingresos') filtrarIngresos();
     if (tabla === 'salidas') filtrarSalidas();
     if (tabla === 'inventario') filtrarInventario();
+    // Subir a Supabase inmediatamente
+    sbUpsertMany(tabla, rows).then(() => {
+      setSyncStatus('ok');
+      toast(`✅ ${rows.length} registros en Supabase`);
+    }).catch(e => console.warn('Supabase import error:', e.message));
   };
   reader.readAsText(file, 'utf-8');
 }
