@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual Vendedor — Doc Pop Corn</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0F0F0F;
+    color: #F0F0F0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* HEADER */
+  .header {
+    background: #1A1A1A;
+    border-bottom: 3px solid #F5C800;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .header-logo { font-size: 28px; font-weight: 900; color: #F5C800; }
+  .header-logo span { color: #F0F0F0; font-weight: 400; }
+  .header-sub { font-size: 13px; color: #888; margin-top: 4px; }
+  .header-badge {
+    display: inline-block;
+    background: #F5C800;
+    color: #000;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-top: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* MAIN */
+  .main { padding: 0 16px 40px; max-width: 560px; margin: 0 auto; }
+
+  /* INTRO */
+  .intro {
+    background: #1A1A1A;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border-left: 4px solid #F5C800;
+  }
+  .intro p { color: #CCC; font-size: 14px; }
+
+  /* SECCIÓN */
+  .seccion {
+    margin-top: 28px;
+  }
+  .seccion-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: #F5C800;
+    color: #000;
+    font-weight: 900;
+    font-size: 16px;
+    border-radius: 50%;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  .seccion-titulo {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 800;
+    margin-bottom: 12px;
+  }
+  .seccion-icon { font-size: 20px; margin-right: 8px; }
+
+  /* PANTALLA SIMULADA */
+  .pantalla {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 12px 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .pantalla-header {
+    background: #1A1A1A;
+    border-bottom: 2px solid #F5C800;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pantalla-logo { font-size: 14px; font-weight: 800; color: #F5C800; }
+  .pantalla-logo span { color: #F0F0F0; font-weight: 400; }
+  .pantalla-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    margin-left: auto;
+  }
+  .badge-po { background: rgba(245,200,0,0.15); color: #F5C800; }
+  .badge-paj { background: rgba(26,158,95,0.15); color: #2ECC71; }
+
+  .pantalla-tabs {
+    display: flex;
+    background: #1A1A1A;
+    border-bottom: 1px solid #333;
+    overflow-x: auto;
+    padding: 0 8px;
+  }
+  .tab {
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    white-space: nowrap;
+    border-bottom: 3px solid transparent;
+  }
+  .tab.active { color: #F5C800; border-bottom-color: #F5C800; }
+
+  .pantalla-body { padding: 14px; }
+
+  /* CAMPO */
+  .campo-grupo { margin-bottom: 10px; }
+  .campo-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .campo-input {
+    background: #2A2A2A;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #F0F0F0;
+    width: 100%;
+  }
+  .campo-input.active { border-color: #F5C800; }
+  .campo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  /* BOTÓN */
+  .btn-pantalla {
+    width: 100%;
+    background: #F5C800;
+    color: #000;
+    font-weight: 800;
+    font-size: 14px;
+    padding: 12px;
+    border-radius: 8px;
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  /* TOAST */
+  .toast {
+    background: #1A9E5F;
+    color: #fff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 10px 16px;
+    border-radius: 30px;
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* TABLA SIMULADA */
+  .tabla-sim {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-top: 8px;
+  }
+  .tabla-sim th {
+    background: #2A2A2A;
+    color: #888;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+  .tabla-sim td {
+    padding: 7px 8px;
+    border-top: 1px solid #2A2A2A;
+    color: #DDD;
+  }
+  .chip {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .chip-po { background: rgba(245,200,0,0.15); color: #F5C800; }
+  .chip-paj { background: rgba(26,158,95,0.15); color: #2ECC71; }
+  .chip-mot { background: #2A2A2A; color: #888; }
+  .semaforo-ok { color: #2ECC71; font-weight: 700; font-size: 11px; }
+  .semaforo-bajo { color: #F39C12; font-weight: 700; font-size: 11px; }
+  .semaforo-rojo { color: #E74C3C; font-weight: 700; font-size: 11px; }
+
+  /* PASO */
+  .paso {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #222;
+  }
+  .paso:last-child { border-bottom: none; }
+  .paso-num {
+    width: 24px;
+    height: 24px;
+    background: #333;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #F5C800;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .paso-texto { font-size: 14px; color: #CCC; }
+  .paso-texto strong { color: #F0F0F0; }
+
+  /* ALERTA */
+  .alerta {
+    background: rgba(224,58,47,0.1);
+    border: 1px solid rgba(224,58,47,0.3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #E74C3C;
+    margin: 12px 0;
+  }
+  .tip {
+    background: rgba(245,200,0,0.08);
+    border-left: 3px solid #F5C800;
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #CCC;
+    margin: 12px 0;
+  }
+
+  /* DIVIDER */
+  .divider {
+    height: 1px;
+    background: #222;
+    margin: 24px 0;
+  }
+
+  /* LINK */
+  .link-box {
+    background: #1A1A1A;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 14px;
+    margin: 12px 0;
+    text-align: center;
+  }
+  .link-box .link-label { font-size: 11px; color: #888; margin-bottom: 6px; }
+  .link-box .link-url { font-size: 13px; color: #F5C800; word-break: break-all; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">🍿 Doc<span> Pop Corn</span></div>
+  <div class="header-sub">Sistema de Control de Bodega</div>
+  <div class="header-badge">📋 Manual del Vendedor</div>
+</div>
+
+<div class="main">
+
+  <div class="intro">
+    <p>Este manual te explica cómo registrar <strong>ingresos, salidas e inventario</strong> de bodega desde tu celular o computador. Todo queda guardado automáticamente.</p>
+  </div>
+
+  <!-- ─── ACCESO ─── -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">1</span>
+      <span class="seccion-icon">🔗</span> Cómo entrar al sistema
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Abre el link de tu local desde el navegador de tu celular o computador:</p>
+
+    <div class="link-box">
+      <div class="link-label">Plaza Oeste</div>
+      <div class="link-url">dpc-bodega.netlify.app/bodega-plaza-oeste.html</div>
+    </div>
+    <div class="link-box">
+      <div class="link-label">Pajaritos</div>
+      <div class="link-url">dpc-bodega.netlify.app/bodega-pajaritos.html</div>
+    </div>
+
+    <div class="tip">💡 Guarda el link en favoritos o pídele a alguien que te lo comparta por WhatsApp.</div>
+
+    <p style="color:#CCC;font-size:14px;margin:10px 0 8px;">Al entrar verás esto automáticamente — el local ya viene fijo:</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge badge-po">Plaza Oeste</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab active">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ─── SALIDAS ─── -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">2</span>
+      <span class="seccion-icon">📤</span> Registrar una salida de bodega
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Cada vez que retires algo de bodega, regístralo en la pestaña <strong>Salidas</strong>.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge badge-po">Plaza Oeste</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab active">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:10px;">Nueva salida</div>
+        <div class="campo-grid">
+          <div class="campo-grupo">
+            <div class="campo-label">Fecha y hora</div>
+            <div class="campo-input">08-07-2026 10:30</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">Local</div>
+            <div class="campo-input active">Plaza Oeste</div>
+          </div>
+        </div>
+        <div class="campo-grupo" style="margin-top:8px;">
+          <div class="campo-label">Insumo</div>
+          <div class="campo-input active">Maíz Butterfly 25kg (Celeste)</div>
+        </div>
+        <div class="campo-grid" style="margin-top:8px;">
+          <div class="campo-grupo">
+            <div class="campo-label">Cantidad</div>
+            <div class="campo-input active">2</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">Responsable</div>
+            <div class="campo-input active">Gonzalo Heríquez</div>
+          </div>
+        </div>
+        <div class="campo-grupo" style="margin-top:8px;">
+          <div class="campo-label">Motivo</div>
+          <div class="campo-input active">Producción</div>
+        </div>
+        <div class="btn-pantalla">✅ Registrar salida</div>
+        <div class="toast">✅ Salida registrada</div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Toca la pestaña <strong>📤 Salidas</strong></div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Selecciona el <strong>Insumo</strong> que retiraste</div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Ingresa la <strong>Cantidad</strong></div></div>
+      <div class="paso"><div class="paso-num">4</div><div class="paso-texto">Selecciona tu nombre en <strong>Responsable</strong></div></div>
+      <div class="paso"><div class="paso-num">5</div><div class="paso-texto">El <strong>Motivo</strong> ya viene en "Producción" — cámbialo solo si es distinto</div></div>
+      <div class="paso"><div class="paso-num">6</div><div class="paso-texto">Toca <strong>✅ Registrar salida</strong> — aparece mensaje verde de confirmación</div></div>
+    </div>
+
+    <div class="alerta">⚠️ No cierres la app hasta ver el mensaje verde de confirmación.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ─── INGRESOS ─── -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">3</span>
+      <span class="seccion-icon">📥</span> Registrar un ingreso de bodega
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Cuando llegue mercadería de un proveedor, regístrala en <strong>Ingresos</strong>.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge badge-po">Plaza Oeste</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab active">📥 Ingresos</div>
+        <div class="tab">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:10px;">Nuevo ingreso</div>
+        <div class="campo-grid">
+          <div class="campo-grupo">
+            <div class="campo-label">Fecha</div>
+            <div class="campo-input">08-07-2026</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">Proveedor</div>
+            <div class="campo-input active">Watts</div>
+          </div>
+        </div>
+        <div class="campo-grupo" style="margin-top:8px;">
+          <div class="campo-label">Insumo</div>
+          <div class="campo-input active">Aceite de Maíz</div>
+        </div>
+        <div class="campo-grid" style="margin-top:8px;">
+          <div class="campo-grupo">
+            <div class="campo-label">Cantidad</div>
+            <div class="campo-input active">5</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">N° Lote</div>
+            <div class="campo-input">L2024001</div>
+          </div>
+        </div>
+        <div class="campo-grupo" style="margin-top:8px;">
+          <div class="campo-label">Fecha vencimiento</div>
+          <div class="campo-input">2027-01-15</div>
+        </div>
+        <div class="btn-pantalla">✅ Registrar ingreso</div>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Toca la pestaña <strong>📥 Ingresos</strong></div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Selecciona el <strong>Proveedor</strong> de la lista</div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Selecciona el <strong>Insumo</strong> que llegó</div></div>
+      <div class="paso"><div class="paso-num">4</div><div class="paso-texto">Ingresa la <strong>Cantidad</strong> recibida</div></div>
+      <div class="paso"><div class="paso-num">5</div><div class="paso-texto">Si el producto tiene lote o vencimiento, ingrésalo (opcional)</div></div>
+      <div class="paso"><div class="paso-num">6</div><div class="paso-texto">Toca <strong>✅ Registrar ingreso</strong></div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ─── INVENTARIO ─── -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">4</span>
+      <span class="seccion-icon">📋</span> Inventario semanal
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Una vez a la semana hay que contar todo lo que hay en bodega. Hazlo siempre el mismo día y hora.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge badge-po">Plaza Oeste</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab">📤 Salidas</div>
+        <div class="tab active">📋 Inventario</div>
+        <div class="tab">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:10px;">Nuevo conteo físico</div>
+        <div class="campo-grid">
+          <div class="campo-grupo">
+            <div class="campo-label">Fecha conteo</div>
+            <div class="campo-input">08-07-2026</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">Local</div>
+            <div class="campo-input active">Plaza Oeste</div>
+          </div>
+        </div>
+        <div class="campo-grupo" style="margin-top:8px;">
+          <div class="campo-label">Insumo</div>
+          <div class="campo-input active">Maíz Butterfly 25kg (Celeste)</div>
+        </div>
+        <div class="campo-grid" style="margin-top:8px;">
+          <div class="campo-grupo">
+            <div class="campo-label">Stock contado</div>
+            <div class="campo-input active">12</div>
+          </div>
+          <div class="campo-grupo">
+            <div class="campo-label">Responsable</div>
+            <div class="campo-input active">Javiera Espinoza</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <div class="btn-pantalla" style="flex:1;">✅ Registrar conteo</div>
+          <div style="background:#2A2A2A;color:#F0F0F0;font-size:12px;font-weight:700;padding:12px;border-radius:8px;text-align:center;flex:1;">📋 Conteo masivo</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip">💡 Usa <strong>Conteo masivo</strong> para ingresar todos los productos de una vez — es más rápido que hacerlos uno a uno.</div>
+
+    <div style="margin-top:14px;">
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Toca la pestaña <strong>📋 Inventario</strong></div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Toca <strong>📋 Conteo masivo</strong> para ver todos los insumos de una vez</div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Ingresa la cantidad que cuenta físicamente para cada insumo</div></div>
+      <div class="paso"><div class="paso-num">4</div><div class="paso-texto">Selecciona tu nombre en <strong>Responsable</strong></div></div>
+      <div class="paso"><div class="paso-num">5</div><div class="paso-texto">Toca <strong>✅ Guardar todos</strong></div></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ─── STOCK EN VIVO ─── -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-num">5</span>
+      <span class="seccion-icon">📦</span> Stock en vivo
+    </div>
+
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Muestra el stock estimado de cada insumo y una alerta de color según el nivel.</p>
+
+    <div class="pantalla">
+      <div class="pantalla-header">
+        <div class="pantalla-logo">🍿 Doc<span> Pop Corn</span></div>
+        <span class="pantalla-badge badge-po">Plaza Oeste</span>
+      </div>
+      <div class="pantalla-tabs">
+        <div class="tab">📥 Ingresos</div>
+        <div class="tab">📤 Salidas</div>
+        <div class="tab">📋 Inventario</div>
+        <div class="tab active">📦 Stock</div>
+      </div>
+      <div class="pantalla-body">
+        <table class="tabla-sim">
+          <tr>
+            <th>Insumo</th>
+            <th>Stock</th>
+            <th>Estado</th>
+          </tr>
+          <tr>
+            <td>Maíz Butterfly</td>
+            <td>12 Sacos</td>
+            <td><span class="semaforo-ok">● OK</span></td>
+          </tr>
+          <tr>
+            <td>Aceite de Maíz</td>
+            <td>3 Bidones</td>
+            <td><span class="semaforo-bajo">● Bajo</span></td>
+          </tr>
+          <tr>
+            <td>Galletas Oreo</td>
+            <td>8 Paquetes</td>
+            <td><span class="semaforo-rojo">● Crítico</span></td>
+          </tr>
+          <tr>
+            <td>Mantequilla Calo</td>
+            <td>45 Unidades</td>
+            <td><span class="semaforo-ok">● OK</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#CCC;">
+        <span style="color:#2ECC71;font-size:16px;">●</span> <strong style="color:#F0F0F0;">OK</strong> — Stock suficiente, sin problema
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#CCC;">
+        <span style="color:#F39C12;font-size:16px;">●</span> <strong style="color:#F0F0F0;">Bajo</strong> — Stock bajo el mínimo, avisar al jefe
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#CCC;">
+        <span style="color:#E74C3C;font-size:16px;">●</span> <strong style="color:#F0F0F0;">Crítico</strong> — Riesgo de quiebre, avisar urgente
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- REGLAS -->
+  <div class="seccion">
+    <div class="seccion-titulo">
+      <span class="seccion-icon">⚠️</span> Reglas importantes
+    </div>
+    <div class="alerta" style="margin-bottom:8px;">🔴 Registra <strong>toda</strong> salida de bodega, aunque sea una unidad.</div>
+    <div class="alerta" style="margin-bottom:8px;">🔴 No registres salidas de otro local — el sistema ya viene fijo con el tuyo.</div>
+    <div class="alerta">🔴 Si ves un insumo en <strong>Crítico</strong>, avisa al jefe de local de inmediato.</div>
+  </div>
+
+  <div style="text-align:center;margin-top:32px;padding:20px;background:#1A1A1A;border-radius:12px;">
+    <div style="font-size:24px;margin-bottom:8px;">🍿</div>
+    <div style="font-size:13px;color:#888;">Doc Pop Corn · Control de Bodega</div>
+    <div style="font-size:11px;color:#555;margin-top:4px;">Cualquier problema, contacta a Sindy</div>
+  </div>
+
+</div>
+</body>
+</html>
