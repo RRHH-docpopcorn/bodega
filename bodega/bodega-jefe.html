@@ -2052,9 +2052,7 @@ function renderStock() {
       else sem = `<span class="chip">Sin conteo</span>`;
 
       const rowStyle = f.esOculto ? 'opacity:0.4;' : '';
-      const btnOcultar = `<button class="btn-icon" title="${f.esOculto ? 'Mostrar' : 'Ocultar'}"
-        onclick="toggleOcultoStock('${f.ins.id}','${f.l}')"
-        style="font-size:14px;">${f.esOculto ? '👁' : '🙈'}</button>`;
+      const btnOcultar = '';
 
       html += `<tr style="${rowStyle}">
         <td><b>${f.ins.nombre}</b></td>
