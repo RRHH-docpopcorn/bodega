@@ -2823,6 +2823,13 @@ async function bajarDatosDesdeSheets(local) {
       renderDashboard(); renderStock(); renderConfigInsumos();
       filtrarSalidas(); filtrarIngresos(); filtrarInventario();
     }
+    // Repoblar selects de insumos siempre (para vendedores)
+    ['ing-insumo','sal-insumo','inv-insumo'].forEach(id => poblarSelectInsumos(id));
+    // Repoblar responsables según local del perfil
+    if (perfilActual) {
+      const localResp = perfilActual.local || 'ambos';
+      ['ing-responsable','sal-responsable','inv-responsable'].forEach(id => poblarResponsable(id, localResp));
+    }
   } catch(e) {
     setSyncStatus('error');
     console.warn('Supabase read error:', e.message);
@@ -2925,7 +2932,12 @@ init();
 </script>
 <script>
 (function() {
-  seleccionarPerfil('vendedor-paj');
+  const waitForData = setInterval(() => {
+    if (typeof seleccionarPerfil === 'function' && typeof DB !== 'undefined') {
+      clearInterval(waitForData);
+      seleccionarPerfil('vendedor-paj');
+    }
+  }, 100);
 })();
 </script>
 </body>
