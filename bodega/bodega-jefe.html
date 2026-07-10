@@ -1562,6 +1562,8 @@ function renderDashboard() {
   DB.insumos.forEach(ins => {
     const aplicaLocales = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
     aplicaLocales.filter(l => locales.includes(l)).forEach(l => {
+      const key = `${ins.id}|${l}`;
+      if (DB.stockOcultos && DB.stockOcultos.has(key)) return;
       const res = calcularStockVivo(ins.id, l);
       const estado = estadoSemaforo(ins, res ? res.stockEstimado : null);
       const dias = diasCobertura(ins, res ? res.stockEstimado : null);
@@ -1569,11 +1571,9 @@ function renderDashboard() {
       else if (estado === 'amarillo') bajo++;
       else if (estado === 'rojo') quiebre++;
       else sinAncla++;
-
       if (estado === 'rojo') {
         alertas.push({ ins: ins.nombre, local: l, stock: res ? res.stockEstimado.toFixed(2) : 'S/D', unidad: ins.unidad });
       }
-
       filas.push({ ins, l, res, estado, dias });
     });
   });
@@ -1954,6 +1954,32 @@ function guardarBulk() {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO
 // ══════════════════════════════════════════════════
+async function cargarOcultos() {
+  try {
+    const records = await sbSelect('stock_ocultos');
+    if (Array.isArray(records)) {
+      DB.stockOcultos = new Set(records.map(r => r.id));
+      localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
+    }
+  } catch(e) {
+    const ocultos = localStorage.getItem('docpopcorn_stockOcultos');
+    DB.stockOcultos = new Set(ocultos ? JSON.parse(ocultos) : []);
+  }
+}
+
+function guardarOcultos() {
+  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
+}
+
+function toggleOcultoStock(insumoId, local) {
+  const key = `${insumoId}|${local}`;
+  if (DB.stockOcultos.has(key)) DB.stockOcultos.delete(key);
+  else DB.stockOcultos.add(key);
+  guardarOcultos();
+  renderStock();
+  renderDashboard();
+}
+
 function guardarOcultos() {
   localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
 }
