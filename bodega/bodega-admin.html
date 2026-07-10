@@ -1562,6 +1562,10 @@ function renderDashboard() {
   DB.insumos.forEach(ins => {
     const aplicaLocales = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
     aplicaLocales.filter(l => locales.includes(l)).forEach(l => {
+      // Saltar insumos ocultos
+      const key = `${ins.id}|${l}`;
+      if (DB.stockOcultos && DB.stockOcultos.has(key)) return;
+
       const res = calcularStockVivo(ins.id, l);
       const estado = estadoSemaforo(ins, res ? res.stockEstimado : null);
       const dias = diasCobertura(ins, res ? res.stockEstimado : null);
@@ -1955,8 +1959,37 @@ function guardarBulk() {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO
 // ══════════════════════════════════════════════════
-function guardarOcultos() {
+async function guardarOcultos() {
   localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
+  // Sincronizar con Supabase
+  try {
+    // Primero borrar todos los ocultos actuales
+    await sbFetch(`${SB_URL}/rest/v1/stock_ocultos?id=neq.x`, { method: 'DELETE' });
+    // Insertar los actuales
+    if (DB.stockOcultos.size > 0) {
+      const records = [...DB.stockOcultos].map(key => {
+        const [insumo_id, local] = key.split('|');
+        return { id: key, insumo_id, local };
+      });
+      await sbUpsertMany('stock_ocultos', records);
+    }
+  } catch(e) {
+    console.warn('Error guardando ocultos:', e.message);
+  }
+}
+
+async function cargarOcultos() {
+  try {
+    const records = await sbSelect('stock_ocultos');
+    if (Array.isArray(records)) {
+      DB.stockOcultos = new Set(records.map(r => r.id));
+      localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
+    }
+  } catch(e) {
+    // Fallback a localStorage
+    const ocultos = localStorage.getItem('docpopcorn_stockOcultos');
+    DB.stockOcultos = new Set(ocultos ? JSON.parse(ocultos) : []);
+  }
 }
 
 function toggleOcultoStock(insumoId, local) {
@@ -1965,6 +1998,7 @@ function toggleOcultoStock(insumoId, local) {
   else DB.stockOcultos.add(key);
   guardarOcultos();
   renderStock();
+  renderDashboard();
 }
 
 function renderStock() {
