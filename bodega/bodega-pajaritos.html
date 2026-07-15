@@ -2841,6 +2841,8 @@ async function bajarDatosDesdeSheets(local) {
       }
     }
     setSyncStatus('ok');
+    // Cargar ocultos ANTES de renderizar
+    await cargarOcultos();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
@@ -2854,9 +2856,6 @@ async function bajarDatosDesdeSheets(local) {
       const localResp = perfilActual.local || 'ambos';
       ['ing-responsable','sal-responsable','inv-responsable'].forEach(id => poblarResponsable(id, localResp));
     }
-    // Cargar ocultos desde Supabase
-    await cargarOcultos();
-    renderStock();
   } catch(e) {
     setSyncStatus('error');
     console.warn('Supabase read error:', e.message);
