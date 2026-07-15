@@ -2861,13 +2861,13 @@ async function bajarDatosDesdeSheets(local) {
   setSyncStatus('syncing');
   try {
     const insumos = await sbSelect('insumos');
-    if (Array.isArray(insumos) && insumos.length > 0) {
+    if (Array.isArray(insumos)) {
       DB.insumos = insumos;
       guardarDB('insumos');
     }
     for (const tabla of ['ingresos','salidas','inventario']) {
       const records = await sbSelect(tabla, local || null);
-      if (Array.isArray(records) && records.length > 0) {
+      if (Array.isArray(records)) {
         DB[tabla] = records;
         guardarDB(tabla);
       }
