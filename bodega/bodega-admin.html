@@ -2267,12 +2267,13 @@ async function leerVentasAirtable(mes, local) {
     };
 
     // Direct Airtable API call via pagination
+    const fields = [FIELD_SABOR, FIELD_FORMATO, FIELD_UNIDADES, FIELD_FECHA, FIELD_TIPO, FIELD_LOCAL];
     const params = new URLSearchParams({
-      'fields[]': [FIELD_SABOR, FIELD_FORMATO, FIELD_UNIDADES, FIELD_FECHA, FIELD_TIPO, FIELD_LOCAL],
       'filterByFormula': `AND({fldnHOi6YLus3ij1J}="productos",IS_AFTER({fldGpKkti1teLuRRg},"${fechaInicio}"),IS_BEFORE({fldGpKkti1teLuRRg},"${mes}-32"))`,
       'pageSize': 100
     });
-    if (cursor) params.set('offset', cursor);
+    fields.forEach(f => params.append('fields[]', f));
+    if (cursor) params.append('offset', cursor);
 
     const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?${params}`, {
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '') }
