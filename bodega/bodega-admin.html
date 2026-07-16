@@ -2241,12 +2241,12 @@ async function leerVentasAirtable(mes, local) {
   const fechaFin = mes + '-' + String(ultimoDia).padStart(2,'0');
 
   // Campos: sabor, formato, unidades, fecha, tipo, local
-  const FIELD_SABOR    = 'fldKlEBzCotMIYiaV';
-  const FIELD_FORMATO  = 'fldLSP5iERGwVfExr';
-  const FIELD_UNIDADES = 'fldCHvpimOmPxNONk';
-  const FIELD_FECHA    = 'fldGpKkti1teLuRRg';
-  const FIELD_TIPO     = 'fldnHOi6YLus3ij1J';
-  const FIELD_LOCAL    = 'fldjKhsdUBU0RRU96';
+  const FIELD_SABOR    = 'Sabor';
+  const FIELD_FORMATO  = 'Formato';
+  const FIELD_UNIDADES = 'Unidades';
+  const FIELD_FECHA    = 'periodo_texto';
+  const FIELD_TIPO     = 'Tipo';
+  const FIELD_LOCAL    = 'Local';
 
   let allRecords = [];
   let cursor = null;
@@ -2267,9 +2267,9 @@ async function leerVentasAirtable(mes, local) {
     };
 
     // Direct Airtable API call via pagination
-    const fields = [FIELD_SABOR, FIELD_FORMATO, FIELD_UNIDADES, FIELD_FECHA, FIELD_TIPO, FIELD_LOCAL];
+    const fields = ['Sabor', 'Formato', 'Unidades', 'periodo_texto', 'Tipo', 'Local'];
     const params = new URLSearchParams({
-      'filterByFormula': `AND({fldnHOi6YLus3ij1J}="productos",{fldGpKkti1teLuRRg}>="${fechaInicio}",{fldGpKkti1teLuRRg}<="${fechaFin}")`,
+      'filterByFormula': `AND({Tipo}="productos",{periodo_texto}="${mes}",{Sabor}!="")`,
       'pageSize': 100
     });
     fields.forEach(f => params.append('fields[]', f));
@@ -2291,11 +2291,11 @@ async function leerVentasAirtable(mes, local) {
   return allRecords
     .map(r => {
       const f = r.fields || {};
-      const sabor = f[FIELD_SABOR]?.name || '';
-      const formato = f[FIELD_FORMATO]?.name || '';
-      const unidades = Number(f[FIELD_UNIDADES] || 0);
-      const locales = (f[FIELD_LOCAL] || []).map(l => l.name || '').join(', ');
-      return { sabor, formato, unidades, local: locales };
+      const sabor   = f['Sabor'] || '';
+      const formato = f['Formato'] || '';
+      const unidades = Number(f['Unidades'] || 0);
+      const local   = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
+      return { sabor, formato, unidades, local };
     })
     .filter(r => r.unidades > 0 && r.sabor && r.formato);
 }
