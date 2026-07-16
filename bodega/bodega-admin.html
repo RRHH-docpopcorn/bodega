@@ -2413,7 +2413,11 @@ function renderCuadre() {
     mixPorSabor[k].lb += v.unidades * lb;
   });
 
-  const mixRows = Object.values(mixPorSabor).sort((a,b) => b.lb - a.lb);
+  const mixRows = Object.values(mixPorSabor).sort((a,b) => {
+    if (a.sabor !== b.sabor) return a.sabor.localeCompare(b.sabor);
+    if (a.formato !== b.formato) return a.formato.localeCompare(b.formato);
+    return b.lb - a.lb;
+  });
   document.getElementById('tabla-mix-ventas').innerHTML = mixRows.map(r => {
     const batches = r.lb / BATCH_LB;
     const pct = totalLb > 0 ? (r.lb / totalLb * 100).toFixed(1) : 0;
