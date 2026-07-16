@@ -2399,7 +2399,7 @@ function renderCuadre() {
 
   document.getElementById('cuadre-kpi-ventas').textContent = totalUnidades.toLocaleString('es-CL');
   document.getElementById('cuadre-kpi-lb').textContent = totalLb.toFixed(0) + ' lb';
-  document.getElementById('cuadre-kpi-batches').textContent = totalBatches.toFixed(1);
+  document.getElementById('cuadre-kpi-batches').textContent = Math.round(totalBatches).toLocaleString('es-CL');
 
   // Mix ventas
   const mixCard = document.getElementById('cuadre-mix-card');
@@ -2413,9 +2413,12 @@ function renderCuadre() {
     mixPorSabor[k].lb += v.unidades * lb;
   });
 
+  const FORMATO_ORDEN = ['Pequeño','Mediano','Big Pop','Balde 3 Litros','Balde 5 Litros','Party Bag','Big Tin 13.5L','Refill Balde 3 Litros','Refill Balde 5 Litros','Refill Big Tin'];
   const mixRows = Object.values(mixPorSabor).sort((a,b) => {
     if (a.sabor !== b.sabor) return a.sabor.localeCompare(b.sabor);
-    if (a.formato !== b.formato) return a.formato.localeCompare(b.formato);
+    const oa = FORMATO_ORDEN.indexOf(a.formato);
+    const ob = FORMATO_ORDEN.indexOf(b.formato);
+    if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
     return b.lb - a.lb;
   });
   document.getElementById('tabla-mix-ventas').innerHTML = mixRows.map(r => {
