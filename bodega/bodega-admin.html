@@ -2269,7 +2269,7 @@ async function leerVentasAirtable(mes, local) {
     // Direct Airtable API call via pagination
     const fields = [FIELD_SABOR, FIELD_FORMATO, FIELD_UNIDADES, FIELD_FECHA, FIELD_TIPO, FIELD_LOCAL];
     const params = new URLSearchParams({
-      'filterByFormula': `AND({fldnHOi6YLus3ij1J}="productos",IS_AFTER({fldGpKkti1teLuRRg},"${fechaInicio}"),IS_BEFORE({fldGpKkti1teLuRRg},"${mes}-32"))`,
+      'filterByFormula': `AND({fldnHOi6YLus3ij1J}="productos",{fldGpKkti1teLuRRg}>="${fechaInicio}",{fldGpKkti1teLuRRg}<="${fechaFin}")`,
       'pageSize': 100
     });
     fields.forEach(f => params.append('fields[]', f));
