@@ -2159,6 +2159,38 @@ const INSUMO_RECETA_MAP = {
 // Estado cuadre
 let cuadreData = null;
 
+// Cache de conversiones desde Airtable
+let _conversiones = null;
+
+async function leerConversiones() {
+  if (_conversiones) return _conversiones; // cache
+
+  const BASE  = 'appsiyj4aTKQ5kKtM';
+  const TABLE = 'tblhd7caiVlwxWdQd';
+  const token = localStorage.getItem('airtableToken') || localStorage.getItem('docpopcorn_airtable_token') || '';
+  if (!token) return {};
+
+  const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?pageSize=100`, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  const data = await resp.json();
+  if (!data.records) return {};
+
+  // Construir mapa: nombreInsumo → { unidadBodega, factor, unidadReceta }
+  const mapa = {};
+  data.records.forEach(r => {
+    const f = r.fields || {};
+    const nombre = f['fldvSupRTWCyQAOzj'] || '';
+    const unidadBodega = f['fldq6xpobcT3HkQXJ'] || '';
+    const factor = Number(f['fldrF7tAbnWMlkSQ1'] || 1);
+    const unidadReceta = f['fldZoduQiFBP6kr9X'] || '';
+    if (nombre) mapa[nombre] = { unidadBodega, factor, unidadReceta };
+  });
+
+  _conversiones = mapa;
+  return mapa;
+}
+
 async function calcularCuadre() {
   const mes = document.getElementById('filt-cuadre-mes').value;
   const local = document.getElementById('filt-cuadre-local').value;
@@ -2174,8 +2206,10 @@ async function calcularCuadre() {
     const ventas = await leerVentasAirtable(mes, local);
     estado.textContent = `✅ ${ventas.length} líneas de venta leídas. Calculando...`;
 
-    // Calcular consumo teórico
-    const consumoTeorico = calcularConsumoTeorico(ventas);
+    // Leer conversiones desde Airtable y calcular consumo teórico
+    estado.textContent = '⏳ Leyendo conversiones de insumos...';
+    const conversiones = await leerConversiones();
+    const consumoTeorico = calcularConsumoTeorico(ventas, conversiones);
 
     // Calcular stock inicial (último inventario físico ANTES del mes)
     const stockInicial = calcularStockInicial(mes, local);
@@ -2241,7 +2275,7 @@ async function leerVentasAirtable(mes, local) {
     if (cursor) params.set('offset', cursor);
 
     const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?${params}`, {
-      headers: { 'Authorization': 'Bearer ' + (window._airtableToken || '') }
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('airtableToken') || '') }
     });
     const data = await resp.json();
 
@@ -2265,9 +2299,10 @@ async function leerVentasAirtable(mes, local) {
     .filter(r => r.unidades > 0 && r.sabor && r.formato);
 }
 
-function calcularConsumoTeorico(ventas) {
+function calcularConsumoTeorico(ventas, conversiones) {
   // ventas: [{sabor, formato, unidades}]
-  // returns: {nombreInsumo: cantidadTotal}
+  // conversiones: mapa de Airtable { insumo → { factor, unidadBodega } }
+  // returns: {nombreInsumo: cantidadEnUnidadesBodega}
   const consumo = {};
 
   ventas.forEach(v => {
@@ -2280,7 +2315,11 @@ function calcularConsumoTeorico(ventas) {
     const receta = RECETAS[sabor];
 
     Object.entries(receta).forEach(([ins, cantPorBatch]) => {
-      consumo[ins] = (consumo[ins] || 0) + cantPorBatch * batches;
+      const totalUnidadReceta = cantPorBatch * batches;
+      // Si tenemos conversión desde Airtable, dividir por factor
+      const conv = conversiones && conversiones[ins];
+      const totalBodega = conv ? totalUnidadReceta / conv.factor : totalUnidadReceta;
+      consumo[ins] = (consumo[ins] || 0) + totalBodega;
     });
   });
 
