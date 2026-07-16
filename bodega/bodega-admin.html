@@ -2275,7 +2275,7 @@ async function leerVentasAirtable(mes, local) {
     if (cursor) params.set('offset', cursor);
 
     const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?${params}`, {
-      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('airtableToken') || '') }
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '') }
     });
     const data = await resp.json();
 
