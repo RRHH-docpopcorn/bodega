@@ -2180,10 +2180,10 @@ async function leerConversiones() {
   const mapa = {};
   data.records.forEach(r => {
     const f = r.fields || {};
-    const nombre = f['fldvSupRTWCyQAOzj'] || '';
-    const unidadBodega = f['fldq6xpobcT3HkQXJ'] || '';
-    const factor = Number(f['fldrF7tAbnWMlkSQ1'] || 1);
-    const unidadReceta = f['fldZoduQiFBP6kr9X'] || '';
+    const nombre = f['Insumo'] || '';
+    const unidadBodega = f['Unidad bodega'] || '';
+    const factor = Number(f['Factor'] || 1);
+    const unidadReceta = f['Unidad receta'] || '';
     if (nombre) mapa[nombre] = { unidadBodega, factor, unidadReceta };
   });
 
