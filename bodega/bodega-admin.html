@@ -2288,9 +2288,9 @@ async function calcularPlanificador() {
     const precioMap = {};
     allPrecios.forEach(r => {
       const f       = r.fields || {};
-      const sabor   = f['fldIvNsauC0n5Xy1b'] || '';
-      const formato = f['fld0w5pSIpIghJk3Y']?.name || '';
-      const precio  = Number(f['fldz0OMsQB7KnOOqr'] || 0);
+      const sabor   = f['Categoría'] || '';
+      const formato = f['Tamaño'] || '';
+      const precio  = Number(f['Precio Venta CLP'] || 0);
       if (sabor && formato && precio) precioMap[`${sabor}||${formato}`] = precio;
     });
 
@@ -2300,20 +2300,28 @@ async function calcularPlanificador() {
     const batchesPorSabor = {};
     const librasPorSabor  = {};
 
+    // Mapa sabor (ventas) → categoría (precios)
+    const SABOR_CATEGORIA = {
+      'Klassic Kettle': 'Clásicos', 'Sweet Butter': 'Clásicos',
+      'Better Butter': 'Clásicos', 'Caramel Bliss': 'Caramel Bliss',
+      'Cookies N Cream': 'Especiales', 'Chocolate': 'Especiales',
+      'Apple Crisp': 'Especiales', 'Cheesy Cheddar': 'Especiales',
+      'Hoppin Jalapeño': 'Especiales', 'Hopping Jalapeño': 'Especiales',
+    };
+
     allVentas.forEach(r => {
-      const f       = r.fields || {};
-      const sabor   = f['Sabor'] || '';
-      const formato = f['Formato'] || '';
+      const f        = r.fields || {};
+      const sabor    = f['Sabor'] || '';
+      const formato  = f['Formato'] || '';
       const unidades = Number(f['Unidades'] || 0);
       if (!sabor || !formato || !unidades) return;
 
-      const fmtKey  = FORMATO_MAP[formato] || formato;
-      const lb      = FORMATO_LB[fmtKey] || 0;
-      const batches = lb > 0 ? (unidades * lb) / BATCH_LB : 0;
-
-      // precio: buscar por sabor+formato exacto, luego solo por formato
-      const precio = precioMap[`${sabor}||${formato}`] || precioMap[`Clásicos||${formato}`] || precioMap[`Especiales||${formato}`] || 0;
-      const venta  = unidades * precio;
+      const fmtKey   = FORMATO_MAP[formato] || formato;
+      const lb       = FORMATO_LB[fmtKey] || 0;
+      const batches  = lb > 0 ? (unidades * lb) / BATCH_LB : 0;
+      const categoria = SABOR_CATEGORIA[sabor] || sabor;
+      const precio   = precioMap[`${categoria}||${formato}`] || precioMap[`${sabor}||${formato}`] || 0;
+      const venta    = unidades * precio;
 
       ventaTotal += venta;
       ventaPorSabor[sabor]   = (ventaPorSabor[sabor]   || 0) + venta;
