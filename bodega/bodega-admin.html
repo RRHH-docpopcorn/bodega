@@ -649,6 +649,7 @@
     <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario</button>
     <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
+    <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
   </div>
 </div>
@@ -1086,6 +1087,78 @@
   <!-- ══════════════════════════════════════════ -->
   <!-- CONFIGURACIÓN DE INSUMOS -->
   <!-- ══════════════════════════════════════════ -->
+  <!-- PLANIFICADOR DE COMPRAS -->
+  <div id="tab-planificador" class="tab-content">
+    <div class="section-title">🛒 Planificador de compras</div>
+    <div class="section-sub">Basado en el mix del último cuadre calculado, estima cuánto comprar para alcanzar una meta de ventas</div>
+
+    <div class="tip">💡 Primero calcula el Cuadre de stock de un mes de referencia, luego ingresa tu meta aquí.</div>
+
+    <div class="filters" style="align-items:flex-end;gap:16px;flex-wrap:wrap;">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Meta de ventas brutas</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:var(--text-muted);">$</span>
+          <input type="number" id="plan-meta" placeholder="Ej: 15000000" min="0" step="100000"
+            style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:15px;width:200px;">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="calcularPlanificador()">📊 Calcular compras</button>
+    </div>
+
+    <div id="plan-estado" style="padding:12px 0;color:var(--text-muted);font-size:14px;"></div>
+
+    <!-- KPIs -->
+    <div id="plan-kpis" style="display:none;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0;">
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-meta">—</div>
+          <div class="kpi-lab">Meta ventas</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-batches">—</div>
+          <div class="kpi-lab">Batches a producir</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-libras">—</div>
+          <div class="kpi-lab">Libras a producir</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-ref">—</div>
+          <div class="kpi-lab">Mes de referencia</div>
+        </div>
+      </div>
+
+      <!-- Mix proyectado -->
+      <div class="section-title" style="font-size:14px;margin:16px 0 8px;">Mix proyectado por sabor</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Sabor</th>
+            <th style="text-align:right;">% del mix</th>
+            <th style="text-align:right;">Batches</th>
+            <th style="text-align:right;">Libras</th>
+            <th style="text-align:right;">Venta estimada</th>
+          </tr></thead>
+          <tbody id="plan-mix-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Lista de compras -->
+      <div class="section-title" style="font-size:14px;margin:20px 0 8px;">📦 Lista de compras</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Insumo</th>
+            <th style="text-align:right;">Unidad</th>
+            <th style="text-align:right;">Cantidad a comprar</th>
+          </tr></thead>
+          <tbody id="plan-compras-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="tab-config" class="tab-content">
     <div class="section-title">Configuración de insumos</div>
     <div class="section-sub">Define los insumos, umbrales de alerta y consumo promedio</div>
@@ -2113,7 +2186,7 @@ const RECETAS = {
   'Apple Crisp':     {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Apple Crisp': 12},
   'Cheesy Cheddar':  {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Natural Doc Popcorn Butter Red V2': 20, 'Sal en Polvo': 15, 'Cheesy Cheddar': 16},
   'Hoppin Jalapeño': {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Hopping Jalapeño': 12, 'Sal en Polvo': 15},
-  'Caramel Bliss':   {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Mantequilla Calo': 1, 'Caramelo en polvo Caramel Corn 40lib': 1, 'Separador Free n Easy': 1},
+  'Caramel Bliss':   {'Maíz Premium': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Mantequilla Calo': 1, 'Caramelo en polvo Caramel Corn 40lib': 1, 'Separador Free n Easy': 1},
 };
 
 // Mapeo sabor Airtable → clave receta
@@ -2155,6 +2228,142 @@ const INSUMO_RECETA_MAP = {
   'Caramelo en polvo Caramel Corn 40lib': ['Caramelo en polvo Caramel Corn 40lib'],
   'Separador Free n Easy': ['Separador Free n Easy'],
 };
+
+// ══════════════════════════════════════════════════
+// PLANIFICADOR DE COMPRAS
+// ══════════════════════════════════════════════════
+
+async function calcularPlanificador() {
+  const meta = parseFloat(document.getElementById('plan-meta').value);
+  const estado = document.getElementById('plan-estado');
+  const kpis   = document.getElementById('plan-kpis');
+
+  if (!meta || meta <= 0) { toast('⚠️ Ingresa una meta de ventas válida', true); return; }
+  if (!cuadreData || !cuadreData.ventas || cuadreData.ventas.length === 0) {
+    estado.textContent = '⚠️ Primero calcula el Cuadre de stock de un mes de referencia.';
+    kpis.style.display = 'none';
+    return;
+  }
+
+  estado.textContent = '⏳ Calculando...';
+  kpis.style.display = 'none';
+
+  try {
+    // 1. Leer precios desde Airtable
+    const token = localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '';
+    const resp  = await fetch(`https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tbl8QTa2CPRhPziwa?pageSize=100`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await resp.json();
+
+    // precio por sabor+formato → precio unitario
+    const precioMap = {};
+    (data.records || []).forEach(r => {
+      const f       = r.fields || {};
+      const sabor   = f['fldIvNsauC0n5Xy1b'] || '';
+      const formato = f['fld0w5pSIpIghJk3Y']?.name || '';
+      const precio  = Number(f['fldz0OMsQB7KnOOqr'] || 0);
+      if (sabor && formato && precio) precioMap[`${sabor}||${formato}`] = precio;
+    });
+
+    // 2. Calcular venta total del mes de referencia y mix por sabor
+    const ventas = cuadreData.ventas;
+    let ventaTotal = 0;
+    const ventaPorSabor = {};
+    const batchesPorSabor = {};
+    const librasPorSabor  = {};
+
+    ventas.forEach(v => {
+      const key    = `${v.sabor}||${v.formato}`;
+      const precio = precioMap[key] || 0;
+      const venta  = v.unidades * precio;
+      const lb     = FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0;
+      const batches = lb > 0 ? (v.unidades * lb) / BATCH_LB : 0;
+
+      ventaTotal += venta;
+      ventaPorSabor[v.sabor]  = (ventaPorSabor[v.sabor]  || 0) + venta;
+      batchesPorSabor[v.sabor] = (batchesPorSabor[v.sabor] || 0) + batches;
+      librasPorSabor[v.sabor]  = (librasPorSabor[v.sabor]  || 0) + v.unidades * lb;
+    });
+
+    if (ventaTotal === 0) {
+      estado.textContent = '⚠️ No se pudieron calcular ventas. Verifica que los precios estén en Airtable.';
+      return;
+    }
+
+    // 3. Factor de escala: meta / venta real del mes de referencia
+    const factor = meta / ventaTotal;
+
+    // 4. Proyectar batches por sabor
+    const batchesProyectados = {};
+    Object.keys(batchesPorSabor).forEach(sabor => {
+      batchesProyectados[sabor] = batchesPorSabor[sabor] * factor;
+    });
+
+    const totalBatchesProyectados = Object.values(batchesProyectados).reduce((a,b) => a+b, 0);
+    const totalLibrasProyectadas  = Object.values(librasPorSabor).reduce((a,b) => a+b, 0) * factor;
+
+    // 5. Calcular insumos necesarios usando conversiones
+    const conversiones = await leerConversiones();
+    const consumoProyectado = {};
+    const unidadBodegaMap  = {};
+
+    Object.entries(batchesProyectados).forEach(([sabor, batches]) => {
+      const receta = RECETAS[SABOR_MAP[sabor] || sabor] || {};
+      Object.entries(receta).forEach(([insumo, cantPorBatch]) => {
+        const total = cantPorBatch * batches;
+        const conv  = conversiones[insumo];
+        const totalBodega = conv ? total / conv.factor : total;
+        consumoProyectado[insumo] = (consumoProyectado[insumo] || 0) + totalBodega;
+        if (conv) unidadBodegaMap[insumo] = conv.unidadBodega;
+      });
+    });
+
+    // 6. Renderizar KPIs
+    document.getElementById('plan-kpi-meta').textContent    = '$' + Math.round(meta).toLocaleString('es-CL');
+    document.getElementById('plan-kpi-batches').textContent = Math.round(totalBatchesProyectados).toLocaleString('es-CL');
+    document.getElementById('plan-kpi-libras').textContent  = Math.round(totalLibrasProyectadas).toLocaleString('es-CL') + ' lb';
+    document.getElementById('plan-kpi-ref').textContent     = cuadreData.mes || '—';
+
+    // 7. Renderizar mix proyectado
+    const mixRows = Object.keys(batchesProyectados)
+      .sort((a,b) => batchesProyectados[b] - batchesProyectados[a])
+      .map(sabor => {
+        const pct      = ventaTotal > 0 ? (ventaPorSabor[sabor] / ventaTotal * 100).toFixed(1) : 0;
+        const batches  = batchesProyectados[sabor];
+        const libras   = librasPorSabor[sabor] * factor;
+        const ventaEst = ventaPorSabor[sabor] * factor;
+        return `<tr>
+          <td><b>${sabor}</b></td>
+          <td style="text-align:right;">${pct}%</td>
+          <td style="text-align:right;">${Math.round(batches).toLocaleString('es-CL')}</td>
+          <td style="text-align:right;">${Math.round(libras).toLocaleString('es-CL')} lb</td>
+          <td style="text-align:right;">$${Math.round(ventaEst).toLocaleString('es-CL')}</td>
+        </tr>`;
+      }).join('');
+    document.getElementById('plan-mix-tbody').innerHTML = mixRows || '<tr><td colspan="5">Sin datos</td></tr>';
+
+    // 8. Renderizar lista de compras
+    const comprasRows = Object.entries(consumoProyectado)
+      .filter(([,v]) => v > 0.01)
+      .sort((a,b) => b[1] - a[1])
+      .map(([insumo, cant]) => {
+        const unidad = unidadBodegaMap[insumo] || '';
+        return `<tr>
+          <td><b>${insumo}</b></td>
+          <td style="text-align:right;">${unidad}</td>
+          <td style="text-align:right;font-weight:700;color:var(--yellow);">${Math.ceil(cant).toLocaleString('es-CL')}</td>
+        </tr>`;
+      }).join('');
+    document.getElementById('plan-compras-tbody').innerHTML = comprasRows || '<tr><td colspan="3">Sin datos</td></tr>';
+
+    kpis.style.display = 'block';
+    estado.textContent = '';
+
+  } catch(e) {
+    estado.textContent = '❌ Error: ' + e.message;
+  }
+}
 
 // Estado cuadre
 let cuadreData = null;
