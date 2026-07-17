@@ -2285,15 +2285,30 @@ async function calcularPlanificador() {
     estado.textContent = `⏳ Leyendo ventas de ${mesRef}...`;
     let allVentas = [], offset = null;
     do {
-      let filtro = `AND({Tipo}="productos",{periodo_texto}="${mesRef}",{Sabor}!="")`;
-      if (localPlan) filtro = `AND({Tipo}="productos",{periodo_texto}="${mesRef}",{Sabor}!="",FIND("${localPlan}",{Local})>0)`;
+      const filtro = `AND({Tipo}="productos",{periodo_texto}="${mesRef}",{Sabor}!="")`;
       let url = `https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tblAAx1iIr1uwEkNe?pageSize=100&filterByFormula=${encodeURIComponent(filtro)}`;
       if (offset) url += '&offset=' + offset;
       const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
       const d2 = await r.json();
       allVentas = [...allVentas, ...(d2.records || [])];
       offset = d2.offset;
+      estado.textContent = `⏳ Leyendo ventas... (${allVentas.length} registros)`;
     } while (offset);
+
+    // IDs de locales en Airtable
+    const LOCAL_IDS = {
+      'Plaza Oeste': 'recSZCUVytXmhfnn1',
+      'Pajaritos':   'recJLgzYXhumNLitT',
+    };
+
+    // Filtrar por local en JS usando ID
+    if (localPlan && LOCAL_IDS[localPlan]) {
+      const localId = LOCAL_IDS[localPlan];
+      allVentas = allVentas.filter(r => {
+        const local = r.fields['Local'];
+        return Array.isArray(local) ? local.includes(localId) : local === localId;
+      });
+    }
 
     if (allVentas.length === 0) {
       estado.textContent = `⚠️ Sin ventas en ${mesRef}. Cambia el mes de referencia.`;
