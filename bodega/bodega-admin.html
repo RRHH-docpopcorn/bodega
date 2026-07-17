@@ -2208,6 +2208,7 @@ async function calcularCuadre() {
 
     // Leer conversiones desde Airtable y calcular consumo teórico
     estado.textContent = '⏳ Leyendo conversiones de insumos...';
+    _conversiones = null; // reset cache para forzar lectura fresca
     const conversiones = await leerConversiones();
     const consumoTeorico = calcularConsumoTeorico(ventas, conversiones);
 
