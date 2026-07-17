@@ -2177,16 +2177,32 @@ const FORMATO_LB = {
 };
 
 // Insumo → oz/ml/unidades por BATCH completo (15.5 lb)
+// Recetas por sabor (cantidades por batch en unidad receta)
+// Nombres de insumos = nombres en tabla Conversiones Airtable
 const RECETAS = {
-  'Klassic Kettle':  {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15},
-  'Sweet Butter':    {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Natural Doc Popcorn Butter Red V2': 15, 'Klassic Kettle': 15},
-  'Better Butter':   {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Natural Doc Popcorn Butter Red V2': 20, 'Sal en Polvo': 15},
-  'Chocolate':       {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15, 'Chocolate Trencito': 350},
-  'Cookies N Cream': {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15, 'Galletas Oreo': 3, 'Chocolate Blanco': 1000},
-  'Apple Crisp':     {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Apple Crisp': 12},
-  'Cheesy Cheddar':  {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Natural Doc Popcorn Butter Red V2': 20, 'Sal en Polvo': 15, 'Cheesy Cheddar': 16},
-  'Hoppin Jalapeño': {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Hopping Jalapeño': 12, 'Sal en Polvo': 15},
-  'Caramel Bliss':   {'Maíz Premium': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Mantequilla Calo': 1, 'Caramelo en polvo Caramel Corn 40lib': 1, 'Separador Free n Easy': 1},
+  'Klassic Kettle':  {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15},
+  'Sweet Butter':    {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Natural Doc Popcorn Butter Red': 15, 'Klassic Kettle': 15},
+  'Better Butter':   {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Natural Doc Popcorn Butter Red': 20, 'Sal en Polvo': 15},
+  'Chocolate':       {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15, 'Chocolate Trencito': 350},
+  'Cookies N Cream': {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15, 'Galleta Oreo 108gr': 3, 'Chocolate Blanco': 1},
+  'Apple Crisp':     {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Apple Crisp': 12},
+  'Cheesy Cheddar':  {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Natural Doc Popcorn Butter Red': 20, 'Sal en Polvo': 15, 'Cheesy Cheddar': 16},
+  'Hoppin Jalapeño': {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Hopping Jalapeño': 12, 'Sal en Polvo': 15},
+  'Caramel Bliss':   {'Maíz Mushroom': 32, 'Aceite Chef Maíz': 14, 'Caramel Mix': 32, 'Mantequilla Calo': 250, 'Free & Easy': 25},
+};
+
+// Envases por formato de venta (solo papel como base)
+// 1 unidad de venta = N unidades de envase consumidas
+const ENVASES_FORMATO = {
+  'Pequeño':          {'Bolsa chica': 1},
+  'Mediano':          {'Bolsas medianas papel': 1},
+  'Big Pop':          {'Bolsas grandes papel': 1},
+  'Balde 3L':         {'Balde 3L': 1, 'Tapa 3L': 1},
+  'Balde 5L':         {'Balde 5L': 1, 'Tapa 5L': 1},
+  'Big Tin 13.5L':    {'Tarros 13,5L': 1, 'Tapa 13.5L': 1},
+  'Party Bag':        {'Bolsa Party Bag': 1, 'Etiquetas Party Bag': 1},
+  'Balde 3 Litros':   {'Balde 3L': 1, 'Tapa 3L': 1},
+  'Balde 5 Litros':   {'Balde 5L': 1, 'Tapa 5L': 1},
 };
 
 // Mapeo sabor Airtable → clave receta
@@ -2551,26 +2567,32 @@ async function leerVentasAirtable(mes, local) {
 }
 
 function calcularConsumoTeorico(ventas, conversiones) {
-  // ventas: [{sabor, formato, unidades}]
-  // conversiones: mapa de Airtable { insumo → { factor, unidadBodega } }
-  // returns: {nombreInsumo: cantidadEnUnidadesBodega}
   const consumo = {};
 
   ventas.forEach(v => {
-    const sabor = SABOR_MAP[v.sabor] || v.sabor;
+    const sabor  = SABOR_MAP[v.sabor] || v.sabor;
     const fmtKey = FORMATO_MAP[v.formato] || v.formato;
-    const lb = FORMATO_LB[fmtKey] || 0;
+    const lb     = FORMATO_LB[fmtKey] || 0;
     if (!lb || !RECETAS[sabor]) return;
 
     const batches = (v.unidades * lb) / BATCH_LB;
-    const receta = RECETAS[sabor];
+    const receta  = RECETAS[sabor];
 
+    // Ingredientes de producción
     Object.entries(receta).forEach(([ins, cantPorBatch]) => {
       const totalUnidadReceta = cantPorBatch * batches;
-      // Si tenemos conversión desde Airtable, dividir por factor
       const conv = conversiones && conversiones[ins];
       const totalBodega = conv ? totalUnidadReceta / conv.factor : totalUnidadReceta;
       consumo[ins] = (consumo[ins] || 0) + totalBodega;
+    });
+
+    // Envases por unidad vendida
+    const envases = ENVASES_FORMATO[fmtKey] || ENVASES_FORMATO[v.formato] || {};
+    Object.entries(envases).forEach(([envase, cantPorUnidad]) => {
+      const totalEnvase = cantPorUnidad * v.unidades;
+      const conv = conversiones && conversiones[envase];
+      const totalBodega = conv ? totalEnvase / conv.factor : totalEnvase;
+      consumo[envase] = (consumo[envase] || 0) + totalBodega;
     });
   });
 
