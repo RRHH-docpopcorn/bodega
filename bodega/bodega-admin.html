@@ -2234,31 +2234,59 @@ const INSUMO_RECETA_MAP = {
 // ══════════════════════════════════════════════════
 
 async function calcularPlanificador() {
-  const meta = parseFloat(document.getElementById('plan-meta').value);
+  const meta   = parseFloat(document.getElementById('plan-meta').value);
   const estado = document.getElementById('plan-estado');
   const kpis   = document.getElementById('plan-kpis');
 
   if (!meta || meta <= 0) { toast('⚠️ Ingresa una meta de ventas válida', true); return; }
-  if (!cuadreData || !cuadreData.ventas || cuadreData.ventas.length === 0) {
-    estado.textContent = '⚠️ Primero calcula el Cuadre de stock de un mes de referencia.';
-    kpis.style.display = 'none';
-    return;
-  }
 
-  estado.textContent = '⏳ Calculando...';
+  estado.textContent = '⏳ Leyendo ventas desde Airtable...';
   kpis.style.display = 'none';
 
   try {
-    // 1. Leer precios desde Airtable
     const token = localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '';
-    const resp  = await fetch(`https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tbl8QTa2CPRhPziwa?pageSize=100`, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    const data = await resp.json();
 
-    // precio por sabor+formato → precio unitario
+    // 1. Elegir mes de referencia: último mes completo
+    const hoy   = new Date();
+    const refMes = hoy.getDate() < 25
+      ? `${hoy.getFullYear()}-${String(hoy.getMonth()).padStart(2,'0')}` // mes anterior
+      : `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`; // mes actual
+    // Mes anterior siempre más confiable
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+    const mesRef = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+    // 2. Leer ventas del mes de referencia
+    estado.textContent = `⏳ Leyendo ventas de ${mesRef}...`;
+    let allVentas = [], offset = null;
+    do {
+      let url = `https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tblAAx1iIr1uwEkNe?pageSize=100&filterByFormula=AND({Tipo}="productos",{periodo_texto}="${mesRef}",{Sabor}!="")`;
+      if (offset) url += '&offset=' + offset;
+      const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      const d2 = await r.json();
+      allVentas = [...allVentas, ...(d2.records || [])];
+      offset = d2.offset;
+    } while (offset);
+
+    if (allVentas.length === 0) {
+      estado.textContent = `⚠️ Sin ventas en ${mesRef}. Cambia el mes de referencia.`;
+      return;
+    }
+
+    // 3. Leer precios
+    estado.textContent = '⏳ Leyendo precios...';
+    let allPrecios = [], offsetP = null;
+    do {
+      let url = `https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tbl8QTa2CPRhPziwa?pageSize=100`;
+      if (offsetP) url += '&offset=' + offsetP;
+      const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      const d3 = await r.json();
+      allPrecios = [...allPrecios, ...(d3.records || [])];
+      offsetP = d3.offset;
+    } while (offsetP);
+
+    // precio por sabor+formato
     const precioMap = {};
-    (data.records || []).forEach(r => {
+    allPrecios.forEach(r => {
       const f       = r.fields || {};
       const sabor   = f['fldIvNsauC0n5Xy1b'] || '';
       const formato = f['fld0w5pSIpIghJk3Y']?.name || '';
@@ -2266,47 +2294,51 @@ async function calcularPlanificador() {
       if (sabor && formato && precio) precioMap[`${sabor}||${formato}`] = precio;
     });
 
-    // 2. Calcular venta total del mes de referencia y mix por sabor
-    const ventas = cuadreData.ventas;
+    // 4. Calcular venta total y mix por sabor
     let ventaTotal = 0;
-    const ventaPorSabor = {};
+    const ventaPorSabor  = {};
     const batchesPorSabor = {};
     const librasPorSabor  = {};
 
-    ventas.forEach(v => {
-      const key    = `${v.sabor}||${v.formato}`;
-      const precio = precioMap[key] || 0;
-      const venta  = v.unidades * precio;
-      const lb     = FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0;
-      const batches = lb > 0 ? (v.unidades * lb) / BATCH_LB : 0;
+    allVentas.forEach(r => {
+      const f       = r.fields || {};
+      const sabor   = f['Sabor'] || '';
+      const formato = f['Formato'] || '';
+      const unidades = Number(f['Unidades'] || 0);
+      if (!sabor || !formato || !unidades) return;
+
+      const fmtKey  = FORMATO_MAP[formato] || formato;
+      const lb      = FORMATO_LB[fmtKey] || 0;
+      const batches = lb > 0 ? (unidades * lb) / BATCH_LB : 0;
+
+      // precio: buscar por sabor+formato exacto, luego solo por formato
+      const precio = precioMap[`${sabor}||${formato}`] || precioMap[`Clásicos||${formato}`] || precioMap[`Especiales||${formato}`] || 0;
+      const venta  = unidades * precio;
 
       ventaTotal += venta;
-      ventaPorSabor[v.sabor]  = (ventaPorSabor[v.sabor]  || 0) + venta;
-      batchesPorSabor[v.sabor] = (batchesPorSabor[v.sabor] || 0) + batches;
-      librasPorSabor[v.sabor]  = (librasPorSabor[v.sabor]  || 0) + v.unidades * lb;
+      ventaPorSabor[sabor]   = (ventaPorSabor[sabor]   || 0) + venta;
+      batchesPorSabor[sabor] = (batchesPorSabor[sabor] || 0) + batches;
+      librasPorSabor[sabor]  = (librasPorSabor[sabor]  || 0) + unidades * lb;
     });
 
     if (ventaTotal === 0) {
-      estado.textContent = '⚠️ No se pudieron calcular ventas. Verifica que los precios estén en Airtable.';
+      estado.textContent = '⚠️ No se pudieron calcular ventas. Verifica que los precios en Airtable tengan el nombre de sabor correcto.';
       return;
     }
 
-    // 3. Factor de escala: meta / venta real del mes de referencia
+    // 5. Factor de escala
     const factor = meta / ventaTotal;
 
-    // 4. Proyectar batches por sabor
+    // 6. Proyectar batches e insumos
     const batchesProyectados = {};
-    Object.keys(batchesPorSabor).forEach(sabor => {
-      batchesProyectados[sabor] = batchesPorSabor[sabor] * factor;
-    });
+    Object.keys(batchesPorSabor).forEach(s => { batchesProyectados[s] = batchesPorSabor[s] * factor; });
 
     const totalBatchesProyectados = Object.values(batchesProyectados).reduce((a,b) => a+b, 0);
     const totalLibrasProyectadas  = Object.values(librasPorSabor).reduce((a,b) => a+b, 0) * factor;
 
-    // 5. Calcular insumos necesarios usando conversiones
     const conversiones = await leerConversiones();
     const consumoProyectado = {};
-    const unidadBodegaMap  = {};
+    const unidadBodegaMap   = {};
 
     Object.entries(batchesProyectados).forEach(([sabor, batches]) => {
       const receta = RECETAS[SABOR_MAP[sabor] || sabor] || {};
@@ -2319,19 +2351,19 @@ async function calcularPlanificador() {
       });
     });
 
-    // 6. Renderizar KPIs
+    // 7. Renderizar KPIs
     document.getElementById('plan-kpi-meta').textContent    = '$' + Math.round(meta).toLocaleString('es-CL');
     document.getElementById('plan-kpi-batches').textContent = Math.round(totalBatchesProyectados).toLocaleString('es-CL');
     document.getElementById('plan-kpi-libras').textContent  = Math.round(totalLibrasProyectadas).toLocaleString('es-CL') + ' lb';
-    document.getElementById('plan-kpi-ref').textContent     = cuadreData.mes || '—';
+    document.getElementById('plan-kpi-ref').textContent     = mesRef;
 
-    // 7. Renderizar mix proyectado
+    // 8. Mix proyectado
     const mixRows = Object.keys(batchesProyectados)
       .sort((a,b) => batchesProyectados[b] - batchesProyectados[a])
       .map(sabor => {
-        const pct      = ventaTotal > 0 ? (ventaPorSabor[sabor] / ventaTotal * 100).toFixed(1) : 0;
-        const batches  = batchesProyectados[sabor];
-        const libras   = librasPorSabor[sabor] * factor;
+        const pct     = ventaTotal > 0 ? (ventaPorSabor[sabor] / ventaTotal * 100).toFixed(1) : 0;
+        const batches = batchesProyectados[sabor];
+        const libras  = librasPorSabor[sabor] * factor;
         const ventaEst = ventaPorSabor[sabor] * factor;
         return `<tr>
           <td><b>${sabor}</b></td>
@@ -2343,7 +2375,7 @@ async function calcularPlanificador() {
       }).join('');
     document.getElementById('plan-mix-tbody').innerHTML = mixRows || '<tr><td colspan="5">Sin datos</td></tr>';
 
-    // 8. Renderizar lista de compras
+    // 9. Lista de compras
     const comprasRows = Object.entries(consumoProyectado)
       .filter(([,v]) => v > 0.01)
       .sort((a,b) => b[1] - a[1])
@@ -2358,7 +2390,7 @@ async function calcularPlanificador() {
     document.getElementById('plan-compras-tbody').innerHTML = comprasRows || '<tr><td colspan="3">Sin datos</td></tr>';
 
     kpis.style.display = 'block';
-    estado.textContent = '';
+    estado.textContent = `✅ Basado en ${allVentas.length} líneas de venta de ${mesRef} · Venta real del mes: $${Math.round(ventaTotal).toLocaleString('es-CL')}`;
 
   } catch(e) {
     estado.textContent = '❌ Error: ' + e.message;
