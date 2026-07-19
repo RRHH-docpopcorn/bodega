@@ -297,11 +297,11 @@
 
     <div class="link-box">
       <div class="link-label">Plaza Oeste</div>
-      <div class="link-url">dpc-bodega.netlify.app/bodega-plaza-oeste.html</div>
+      <div class="link-url">rrhh-docpopcorn.github.io/bodega/bodega/bodega-plaza-oeste.html</div>
     </div>
     <div class="link-box">
       <div class="link-label">Pajaritos</div>
-      <div class="link-url">dpc-bodega.netlify.app/bodega-pajaritos.html</div>
+      <div class="link-url">rrhh-docpopcorn.github.io/bodega/bodega/bodega-pajaritos.html</div>
     </div>
 
     <div class="tip">💡 Guarda el link en favoritos o pídele a alguien que te lo comparta por WhatsApp.</div>
@@ -316,7 +316,7 @@
       <div class="pantalla-tabs">
         <div class="tab">📥 Ingresos</div>
         <div class="tab active">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab">📦 Stock</div>
       </div>
     </div>
@@ -341,7 +341,7 @@
       <div class="pantalla-tabs">
         <div class="tab">📥 Ingresos</div>
         <div class="tab active">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab">📦 Stock</div>
       </div>
       <div class="pantalla-body">
@@ -410,7 +410,7 @@
       <div class="pantalla-tabs">
         <div class="tab active">📥 Ingresos</div>
         <div class="tab">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab">📦 Stock</div>
       </div>
       <div class="pantalla-body">
@@ -466,7 +466,7 @@
       <span class="seccion-icon">📋</span> Inventario semanal
     </div>
 
-    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Una vez a la semana hay que contar todo lo que hay en bodega. Hazlo siempre el mismo día y hora.</p>
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">Una vez a la semana hay que contar todo lo que hay en bodega y en el local. El sistema ya tiene la fecha de hoy y tu local pre-cargados.</p>
 
     <div class="pantalla">
       <div class="pantalla-header">
@@ -476,50 +476,56 @@
       <div class="pantalla-tabs">
         <div class="tab">📥 Ingresos</div>
         <div class="tab">📤 Salidas</div>
-        <div class="tab active">📋 Inventario</div>
+        <div class="tab active">📋 Inventario Bodega</div>
+        <div class="tab">🏪 Inventario Local</div>
         <div class="tab">📦 Stock</div>
       </div>
       <div class="pantalla-body">
-        <div style="font-size:12px;color:#888;font-weight:700;text-transform:uppercase;margin-bottom:10px;">Nuevo conteo físico</div>
         <div class="campo-grid">
           <div class="campo-grupo">
             <div class="campo-label">Fecha conteo</div>
-            <div class="campo-input">08-07-2026</div>
+            <div class="campo-input">19-07-2026 ✓</div>
           </div>
           <div class="campo-grupo">
             <div class="campo-label">Local</div>
-            <div class="campo-input active">Plaza Oeste</div>
+            <div class="campo-input active">Plaza Oeste ✓</div>
           </div>
         </div>
         <div class="campo-grupo" style="margin-top:8px;">
-          <div class="campo-label">Insumo</div>
-          <div class="campo-input active">Maíz Butterfly 25kg (Celeste)</div>
+          <div class="campo-label">Responsable</div>
+          <div class="campo-input active">Javiera Espinoza</div>
         </div>
-        <div class="campo-grid" style="margin-top:8px;">
-          <div class="campo-grupo">
-            <div class="campo-label">Stock contado</div>
-            <div class="campo-input active">12</div>
-          </div>
-          <div class="campo-grupo">
-            <div class="campo-label">Responsable</div>
-            <div class="campo-input active">Javiera Espinoza</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;">
-          <div class="btn-pantalla" style="flex:1;">✅ Registrar conteo</div>
-          <div style="background:#2A2A2A;color:#F0F0F0;font-size:12px;font-weight:700;padding:12px;border-radius:8px;text-align:center;flex:1;">📋 Conteo masivo</div>
+        <div style="margin-top:12px;">
+          <div class="btn-pantalla">📋 Generar conteo</div>
         </div>
       </div>
     </div>
 
-    <div class="tip">💡 Usa <strong>Conteo masivo</strong> para ingresar todos los productos de una vez — es más rápido que hacerlos uno a uno.</div>
+    <p style="color:#CCC;font-size:13px;margin:10px 0 6px;">Al tocar <strong>Generar conteo</strong> aparece la lista completa de insumos:</p>
+
+    <div class="pantalla">
+      <div class="pantalla-body">
+        <table class="tabla-sim">
+          <tr><th>Insumo</th><th>Unidad</th><th>Cantidad</th></tr>
+          <tr><td colspan="3" style="color:#F39C12;font-weight:700;font-size:11px;">🌽 INSUMOS</td></tr>
+          <tr><td>Maíz Butterfly</td><td>Saco</td><td><span style="background:#1A1A1A;border:1px solid #444;border-radius:4px;padding:2px 8px;">12</span></td></tr>
+          <tr><td>Aceite Chef Maíz</td><td>Bidón</td><td><span style="background:#1A1A1A;border:1px solid #F39C12;border-radius:4px;padding:2px 8px;">5</span></td></tr>
+          <tr><td>Azúcar</td><td>Manga</td><td><span style="background:#1A1A1A;border:1px solid #444;border-radius:4px;padding:2px 8px;">—</span></td></tr>
+          <tr><td colspan="3" style="color:#F39C12;font-weight:700;font-size:11px;">🍬 SABORES</td></tr>
+          <tr><td>Klassic Kettle</td><td>Bolsa</td><td><span style="background:#1A1A1A;border:1px solid #444;border-radius:4px;padding:2px 8px;">3</span></td></tr>
+        </table>
+        <div class="btn-pantalla" style="margin-top:10px;">✅ Guardar inventario</div>
+      </div>
+    </div>
+
+    <div class="tip">💡 Solo llena los insumos que puedes contar. Los que dejes en blanco no se registran. Recuerda hacer lo mismo en <strong>🏪 Inventario Local</strong> para los insumos que están en el local.</div>
 
     <div style="margin-top:14px;">
-      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Toca la pestaña <strong>📋 Inventario</strong></div></div>
-      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Toca <strong>📋 Conteo masivo</strong> para ver todos los insumos de una vez</div></div>
-      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Ingresa la cantidad que cuenta físicamente para cada insumo</div></div>
-      <div class="paso"><div class="paso-num">4</div><div class="paso-texto">Selecciona tu nombre en <strong>Responsable</strong></div></div>
-      <div class="paso"><div class="paso-num">5</div><div class="paso-texto">Toca <strong>✅ Guardar todos</strong></div></div>
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Ve a la pestaña <strong>📋 Inventario Bodega</strong> o <strong>🏪 Inventario Local</strong></div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Selecciona tu nombre en <strong>Responsable</strong> — la fecha y el local ya están cargados</div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Toca <strong>📋 Generar conteo</strong> — aparece la lista completa de insumos</div></div>
+      <div class="paso"><div class="paso-num">4</div><div class="paso-texto">Ingresa la cantidad contada para cada insumo — puedes dejar en blanco los que no aplican</div></div>
+      <div class="paso"><div class="paso-num">5</div><div class="paso-texto">Toca <strong>✅ Guardar inventario</strong> — queda registrado y se actualiza el stock en vivo</div></div>
     </div>
   </div>
 
@@ -542,7 +548,8 @@
       <div class="pantalla-tabs">
         <div class="tab">📥 Ingresos</div>
         <div class="tab">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
+        <div class="tab">🏪 Inventario Local</div>
         <div class="tab active">📦 Stock</div>
       </div>
       <div class="pantalla-body">
