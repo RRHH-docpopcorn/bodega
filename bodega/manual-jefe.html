@@ -266,7 +266,7 @@
 
     <div class="link-box">
       <div class="link-label">Tu link (jefe de local)</div>
-      <div class="link-url">dpc-bodega.netlify.app/bodega-jefe.html</div>
+      <div class="link-url">rrhh-docpopcorn.github.io/bodega/bodega/bodega-jefe.html</div>
     </div>
 
     <p style="color:#CCC;font-size:14px;margin:10px 0 8px;">Al abrir te pide una contraseña:</p>
@@ -300,7 +300,7 @@
         <div class="tab active">📊 Dashboard</div>
         <div class="tab">📥 Ingresos</div>
         <div class="tab">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab">📦 Stock</div>
       </div>
       <div class="pantalla-body">
@@ -342,7 +342,7 @@
         <div class="tab">📊 Dashboard</div>
         <div class="tab">📥 Ingresos</div>
         <div class="tab">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab active">📦 Stock</div>
       </div>
       <div class="pantalla-body">
@@ -398,7 +398,7 @@
         <div class="tab">📊 Dashboard</div>
         <div class="tab">📥 Ingresos</div>
         <div class="tab active">📤 Salidas</div>
-        <div class="tab">📋 Inventario</div>
+        <div class="tab">📋 Inventario Bodega</div>
         <div class="tab">📦 Stock</div>
       </div>
       <div class="pantalla-body">
@@ -432,14 +432,16 @@
       <span class="seccion-icon">📋</span> Inventario semanal
     </div>
 
-    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">El inventario semanal es la base del cálculo de stock. Como jefe debes asegurarte que los vendedores lo hagan <strong>cada semana el mismo día</strong>.</p>
+    <p style="color:#CCC;font-size:14px;margin-bottom:10px;">El inventario semanal es la base del cálculo de stock. Hay dos conteos: <strong>bodega</strong> y <strong>local</strong>. Ambos deben hacerse cada semana.</p>
 
     <div class="tip">📅 Recomendación: hacerlo los <strong>lunes por la mañana</strong>, antes de abrir. Así el stock en vivo parte desde datos frescos cada semana.</div>
 
     <div style="margin-top:14px;">
-      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Confirma que los vendedores hayan hecho el conteo semanal</div></div>
-      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Revisa en <strong>📋 Inventario</strong> que aparezcan registros de la semana actual</div></div>
-      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Si falta algún local, pide al vendedor que lo registre antes de operar</div></div>
+      <div class="paso"><div class="paso-num">1</div><div class="paso-texto">Ve a <strong>📋 Inventario Bodega</strong> — selecciona tu nombre y toca <strong>📋 Generar conteo</strong></div></div>
+      <div class="paso"><div class="paso-num">2</div><div class="paso-texto">Llena las cantidades de cada insumo en bodega y toca <strong>✅ Guardar inventario</strong></div></div>
+      <div class="paso"><div class="paso-num">3</div><div class="paso-texto">Ve a <strong>🏪 Inventario Local</strong> y repite el proceso para los insumos en el local</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Confirma que ambos locales hayan registrado los dos conteos antes de operar</div></div>
+      <div class="paso"><div class="paso-num">✓</div><div class="paso-texto">Revisa el Stock en vivo — ahora suma bodega + local automáticamente</div></div>
     </div>
   </div>
 
