@@ -2510,7 +2510,7 @@ async function calcularCuadre() {
   }
 }
 
-async function leerVentasAirtable(mes, local) {
+async function leerVentasAirtable(mes, localFiltro) {
   const BASE = 'appsiyj4aTKQ5kKtM';
   const TABLE = 'tblAAx1iIr1uwEkNe';
   // mes = "2025-06" → fecha inicio "2025-06-01"
@@ -2567,16 +2567,28 @@ async function leerVentasAirtable(mes, local) {
   } while (cursor);
 
   // Mapear a estructura simple
-  return allRecords
+  const LOCAL_IDS = {
+    'Plaza Oeste': 'recSZCUVytXmhfnn1',
+    'Pajaritos':   'recJLgzYXhumNLitT',
+  };
+
+  let resultado = allRecords
     .map(r => {
       const f = r.fields || {};
-      const sabor   = f['Sabor'] || '';
-      const formato = f['Formato'] || '';
+      const sabor    = f['Sabor'] || '';
+      const formato  = f['Formato'] || '';
       const unidades = Number(f['Unidades'] || 0);
-      const local   = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
-      return { sabor, formato, unidades, local };
+      const localId  = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
+      return { sabor, formato, unidades, localId };
     })
     .filter(r => r.unidades > 0 && r.sabor && r.formato);
+
+  // Filtrar por local si se especificó
+  if (localFiltro && LOCAL_IDS[localFiltro]) {
+    resultado = resultado.filter(r => r.localId === LOCAL_IDS[localFiltro]);
+  }
+
+  return resultado;
 }
 
 function calcularConsumoTeorico(ventas, conversiones) {
