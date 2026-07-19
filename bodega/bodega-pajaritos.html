@@ -1915,7 +1915,9 @@ function generarConteoInventario(prefix) {
   }
 
   const tbody = document.getElementById(`${prefix}-conteo-tbody`);
-  const insumos = [...DB.insumos].sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+  const insumos = [...DB.insumos]
+    .filter(ins => !DB.stockOcultos.has(`${ins.id}|${local}`))
+    .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
 
   let catActual = '';
   let html = '';
