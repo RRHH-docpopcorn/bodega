@@ -634,7 +634,8 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
-    <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario</button>
+    <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario Bodega</button>
+    <button class="tab-btn" onclick="switchTab('inventario-local')">🏪 Inventario Local</button>
     <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
@@ -957,6 +958,84 @@
           <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
         </thead>
         <tbody id="tabla-inventario"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- INVENTARIO LOCAL -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="tab-inventario-local" class="tab-content">
+    <div class="section-title">Inventario físico local</div>
+    <div class="section-sub">Conteo real de insumos en el local · complementa el inventario de bodega</div>
+
+    <div class="tip">💡 Registra aquí los insumos que están en el local (no en bodega). El stock total es bodega + local.</div>
+
+    <div class="card">
+      <div class="card-title">Nuevo conteo local</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>Fecha conteo</label>
+          <input type="date" id="invl-fecha">
+        </div>
+        <div class="field">
+          <label>Local</label>
+          <select id="invl-local" onchange="poblarResponsable('invl-responsable', this.value)">
+            <option value="">Seleccionar local</option>
+            <option value="Plaza Oeste">Plaza Oeste</option>
+            <option value="Pajaritos">Pajaritos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Insumo</label>
+          <select id="invl-insumo" onchange="autoUnidadLocal()">
+            <option value="">Seleccionar insumo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Unidad</label>
+          <input type="text" id="invl-unidad" readonly>
+        </div>
+        <div class="field">
+          <label>Stock contado</label>
+          <input type="number" id="invl-stock" placeholder="0" min="0" step="any">
+        </div>
+        <div class="field">
+          <label>Responsable</label>
+          <select id="invl-responsable">
+            <option value="">Seleccionar responsable</option>
+          </select>
+        </div>
+        <div class="field field-span2">
+          <label>Observación</label>
+          <input type="text" id="invl-obs" placeholder="Estado del insumo, anomalías, etc.">
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:14px;">
+        <button class="btn btn-primary" onclick="guardarInventarioLocal()">✅ Registrar conteo local</button>
+        <button class="btn btn-ghost" onclick="abrirModalBulkLocal()">📋 Conteo masivo</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <select onchange="filtrarInventarioLocal()" id="filt-invl-local">
+        <option value="">Todos los locales</option>
+        <option value="Plaza Oeste">Plaza Oeste</option>
+        <option value="Pajaritos">Pajaritos</option>
+      </select>
+      <input type="month" id="filt-invl-mes" onchange="filtrarInventarioLocal()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;">
+      <div class="filters-right">
+        <button class="btn btn-ghost btn-sm" onclick="exportarCSV('inventario_local')">⬇ CSV</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ Importar<input type="file" accept=".csv" onchange="importarCSV(event,'inventario_local')" style="display:none;"></label>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
+        </thead>
+        <tbody id="tabla-inventario-local"></tbody>
       </table>
     </div>
   </div>
@@ -1346,7 +1425,7 @@ function seleccionarPerfil(id) {
 
   // Poblar responsables según local del perfil
   const localResp = perfil.local || 'ambos';
-  ['ing-responsable','sal-responsable','inv-responsable'].forEach(id => poblarResponsable(id, localResp));
+  ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
 
   // Mostrar solo las tabs del perfil
   aplicarTabsPerfil(perfil);
@@ -1381,8 +1460,9 @@ const DB = {
   ingresos: [],
   salidas: [],
   inventario: [],
+  inventario_local: [],
   consumoEsperado: [],
-  stockOcultos: new Set() // Set de "insumoId|local" ocultos en stock en vivo
+  stockOcultos: new Set()
 };
 
 let globalLocal = ''; // '' = todos
@@ -1490,8 +1570,16 @@ function noData(cols) {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO — CÁLCULO PRINCIPAL
 // ══════════════════════════════════════════════════
+function calcularStockLocal(insumoId, local) {
+  const invs = (DB.inventario_local || [])
+    .filter(r => r.insumoId === insumoId && r.local === local)
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  if (invs.length === 0) return 0;
+  return Number(invs[0].stock);
+}
+
 function calcularStockVivo(insumoId, local) {
-  // 1. Último inventario físico para este insumo y local
+  // 1. Último inventario físico de BODEGA para este insumo y local
   const invs = DB.inventario
     .filter(r => r.insumoId === insumoId && r.local === local)
     .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1511,12 +1599,16 @@ function calcularStockVivo(insumoId, local) {
     .filter(r => r.insumoId === insumoId && r.local === local && new Date(r.fecha) >= anclaFecha)
     .reduce((s, r) => s + Number(r.cantidad), 0);
 
+  // 4. Stock en local
+  const stockLocal = calcularStockLocal(insumoId, local);
+
   return {
     anclaFecha: ancla.fecha,
     anclaStock,
     ingresos: totalIngresos,
     salidas: totalSalidas,
-    stockEstimado: anclaStock + totalIngresos - totalSalidas
+    stockLocal,
+    stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal
   };
 }
 
@@ -1830,6 +1922,121 @@ function filtrarSalidas() {
 // ══════════════════════════════════════════════════
 // INVENTARIO SEMANAL
 // ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════
+// INVENTARIO LOCAL
+// ══════════════════════════════════════════════
+
+function autoUnidadLocal() {
+  const insumoId = document.getElementById('invl-insumo').value;
+  const ins = getInsumo(insumoId);
+  document.getElementById('invl-unidad').value = ins ? ins.unidad : '';
+}
+
+function guardarInventarioLocal() {
+  const fecha = document.getElementById('invl-fecha').value;
+  const local = document.getElementById('invl-local').value;
+  const insumoId = document.getElementById('invl-insumo').value;
+  const stock = parseFloat(document.getElementById('invl-stock').value);
+  const responsable = document.getElementById('invl-responsable').value.trim();
+  const obs = document.getElementById('invl-obs').value.trim();
+  const ins = getInsumo(insumoId);
+
+  if (!fecha || !local || !insumoId || isNaN(stock) || !responsable) {
+    toast('⚠️ Completa fecha, local, insumo, stock y responsable', true); return;
+  }
+
+  const rec = { id: uid(), fecha, local, insumoId, unidad: ins ? ins.unidad : '', stock, responsable, obs };
+  DB.inventario_local = DB.inventario_local || [];
+  DB.inventario_local.push(rec);
+  guardarDB('inventario_local');
+  sbUpsertMany('inventario_local', [rec]);
+  toast('✅ Conteo local registrado');
+  ['invl-stock','invl-obs'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('invl-insumo').value = '';
+  document.getElementById('invl-unidad').value = '';
+  filtrarInventarioLocal();
+}
+
+function filtrarInventarioLocal() {
+  const local = document.getElementById('filt-invl-local').value;
+  const mes = document.getElementById('filt-invl-mes').value;
+  let data = [...(DB.inventario_local || [])].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+  if (local) data = data.filter(r => r.local === local);
+  if (mes) data = data.filter(r => r.fecha && r.fecha.startsWith(mes));
+  const tbody = document.getElementById('tabla-inventario-local');
+  if (!tbody) return;
+  if (data.length === 0) { tbody.innerHTML = noData(8); return; }
+
+  const enrich = data.map(r => ({ ...r, _cat: (getInsumo(r.insumoId)?.categoria) || 'Otros' }));
+  const { grupos, cats } = agruparPorCategoria(enrich, f => f._cat);
+
+  let html = '';
+  cats.forEach(cat => {
+    html += `<tr class="cat-header"><td colspan="8">${CATEGORIA_ICONS[cat] || '📦'} ${cat}</td></tr>`;
+    grupos[cat].forEach(r => {
+      const ins = getInsumo(r.insumoId);
+      html += `<tr>
+        <td>${r.fecha}</td>
+        <td>${r.local}</td>
+        <td>${ins ? ins.nombre : r.insumoId}</td>
+        <td><b>${r.stock}</b></td>
+        <td>${r.unidad}</td>
+        <td>${r.responsable}</td>
+        <td>${r.obs || ''}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="eliminarRegistro('inventario_local','${r.id}',filtrarInventarioLocal)">🗑</button></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+}
+
+function abrirModalBulkLocal() {
+  // Reutiliza el modal bulk pero para inventario_local
+  const modal = document.getElementById('modal-bulk');
+  if (!modal) { toast('⚠️ Modal no disponible', true); return; }
+  // Marcar que el bulk es para local
+  modal.dataset.target = 'inventario_local';
+  modal.style.display = 'flex';
+  poblarBulkLocal();
+}
+
+function poblarBulkLocal() {
+  const tbody = document.getElementById('bulk-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = DB.insumos.map(ins => `
+    <tr>
+      <td>${ins.nombre}</td>
+      <td>${ins.categoria}</td>
+      <td><input type="number" class="bulk-input" data-id="${ins.id}" data-unidad="${ins.unidad}" placeholder="—" min="0" step="any" style="width:80px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);"></td>
+      <td>${ins.unidad}</td>
+    </tr>`).join('');
+}
+
+function guardarBulkLocal() {
+  const fecha = document.getElementById('bulk-fecha')?.value;
+  const local = document.getElementById('bulk-local')?.value;
+  const responsable = document.getElementById('bulk-responsable')?.value?.trim();
+  if (!fecha || !local || !responsable) { toast('⚠️ Completa fecha, local y responsable', true); return; }
+
+  const inputs = document.querySelectorAll('.bulk-input');
+  const records = [];
+  inputs.forEach(inp => {
+    const val = parseFloat(inp.value);
+    if (!isNaN(val)) {
+      records.push({ id: uid(), fecha, local, insumoId: inp.dataset.id, unidad: inp.dataset.unidad, stock: val, responsable, obs: '' });
+    }
+  });
+
+  if (records.length === 0) { toast('⚠️ Ingresa al menos un valor', true); return; }
+  DB.inventario_local = DB.inventario_local || [];
+  DB.inventario_local.push(...records);
+  guardarDB('inventario_local');
+  sbUpsertMany('inventario_local', records);
+  cerrarModal();
+  filtrarInventarioLocal();
+  toast(`✅ ${records.length} insumos registrados en inventario local`);
+}
+
 function guardarInventario() {
   const fecha = document.getElementById('inv-fecha').value;
   const local = document.getElementById('inv-local').value;
@@ -2833,7 +3040,7 @@ async function bajarDatosDesdeSheets(local) {
       DB.insumos = insumos;
       guardarDB('insumos');
     }
-    for (const tabla of ['ingresos','salidas','inventario']) {
+    for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       const records = await sbSelect(tabla, local || null);
       if (Array.isArray(records)) {
         DB[tabla] = records;
@@ -2847,14 +3054,14 @@ async function bajarDatosDesdeSheets(local) {
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
       renderDashboard(); renderStock(); renderConfigInsumos();
-      filtrarSalidas(); filtrarIngresos(); filtrarInventario();
+      filtrarSalidas(); filtrarIngresos(); filtrarInventario(); filtrarInventarioLocal();
     }
     // Repoblar selects de insumos siempre (para vendedores)
-    ['ing-insumo','sal-insumo','inv-insumo'].forEach(id => poblarSelectInsumos(id));
+    ['ing-insumo','sal-insumo','inv-insumo','invl-insumo'].forEach(id => poblarSelectInsumos(id));
     // Repoblar responsables según local del perfil
     if (perfilActual) {
       const localResp = perfilActual.local || 'ambos';
-      ['ing-responsable','sal-responsable','inv-responsable'].forEach(id => poblarResponsable(id, localResp));
+      ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
     }
   } catch(e) {
     setSyncStatus('error');
@@ -2870,7 +3077,7 @@ async function subirDatosASheets() {
   setSyncStatus('syncing');
   try {
     await sbUpsertMany('insumos', DB.insumos);
-    for (const tabla of ['ingresos','salidas','inventario']) {
+    for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       if (DB[tabla].length > 0) await sbUpsertMany(tabla, DB[tabla]);
     }
     setSyncStatus('ok');
