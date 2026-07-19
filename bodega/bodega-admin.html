@@ -1474,6 +1474,7 @@ const DB = {
   ingresos: [],
   salidas: [],
   inventario: [],
+  inventario_local: [],
   consumoEsperado: [],
   stockOcultos: new Set() // Set de "insumoId|local" ocultos en stock en vivo
 };
@@ -1583,8 +1584,17 @@ function noData(cols) {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO — CÁLCULO PRINCIPAL
 // ══════════════════════════════════════════════════
+function calcularStockLocal(insumoId, local) {
+  // Último inventario físico del LOCAL para este insumo
+  const invs = (DB.inventario_local || [])
+    .filter(r => r.insumoId === insumoId && r.local === local)
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  if (invs.length === 0) return 0;
+  return Number(invs[0].stock);
+}
+
 function calcularStockVivo(insumoId, local) {
-  // 1. Último inventario físico para este insumo y local
+  // 1. Último inventario físico de BODEGA para este insumo y local
   const invs = DB.inventario
     .filter(r => r.insumoId === insumoId && r.local === local)
     .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1604,12 +1614,16 @@ function calcularStockVivo(insumoId, local) {
     .filter(r => r.insumoId === insumoId && r.local === local && new Date(r.fecha) >= anclaFecha)
     .reduce((s, r) => s + Number(r.cantidad), 0);
 
+  // 4. Stock en local
+  const stockLocal = calcularStockLocal(insumoId, local);
+
   return {
     anclaFecha: ancla.fecha,
     anclaStock,
     ingresos: totalIngresos,
     salidas: totalSalidas,
-    stockEstimado: anclaStock + totalIngresos - totalSalidas
+    stockLocal,
+    stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal
   };
 }
 
@@ -3248,7 +3262,7 @@ async function bajarDatosDesdeSheets(local) {
       DB.insumos = insumos;
       guardarDB('insumos');
     }
-    for (const tabla of ['ingresos','salidas','inventario']) {
+    for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       const records = await sbSelect(tabla, local || null);
       if (Array.isArray(records)) {
         DB[tabla] = records;
@@ -3276,7 +3290,7 @@ async function subirDatosASheets() {
   setSyncStatus('syncing');
   try {
     await sbUpsertMany('insumos', DB.insumos);
-    for (const tabla of ['ingresos','salidas','inventario']) {
+    for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       if (DB[tabla].length > 0) await sbUpsertMany(tabla, DB[tabla]);
     }
     setSyncStatus('ok');
