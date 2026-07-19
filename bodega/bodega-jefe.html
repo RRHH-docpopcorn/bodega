@@ -900,14 +900,12 @@
   <!-- INVENTARIO SEMANAL -->
   <!-- ══════════════════════════════════════════ -->
   <div id="tab-inventario" class="tab-content">
-    <div class="section-title">Inventario físico semanal</div>
+    <div class="section-title">Inventario físico semanal — Bodega</div>
     <div class="section-sub">Conteo real de bodega · base de cálculo de stock</div>
-
-    <div class="tip">💡 Este conteo reemplaza como "ancla" para el cálculo de stock en vivo. Haz el conteo cada semana al mismo día y hora.</div>
+    <div class="tip">💡 Selecciona tu nombre, revisa la fecha y haz clic en "Generar conteo". Completa las cantidades y guarda.</div>
 
     <div class="card">
-      <div class="card-title">Nuevo conteo físico</div>
-      <div class="form-grid cols2">
+      <div class="form-grid cols2" style="margin-bottom:12px;">
         <div class="field">
           <label>Fecha conteo</label>
           <input type="date" id="inv-fecha">
@@ -921,33 +919,25 @@
           </select>
         </div>
         <div class="field">
-          <label>Insumo</label>
-          <select id="inv-insumo">
-            <option value="">Seleccionar insumo</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Unidad</label>
-          <input type="text" id="inv-unidad" readonly>
-        </div>
-        <div class="field">
-          <label>Stock contado</label>
-          <input type="number" id="inv-stock" placeholder="0" min="0" step="any">
-        </div>
-        <div class="field">
           <label>Responsable</label>
-          <select id="inv-responsable">
-            <option value="">Seleccionar responsable</option>
-          </select>
+          <select id="inv-responsable"><option value="">Seleccionar responsable</option></select>
         </div>
-        <div class="field field-span2">
-          <label>Observación</label>
-          <input type="text" id="inv-obs" placeholder="Estado del insumo, anomalías, etc.">
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')">📋 Generar conteo</button>
         </div>
       </div>
-      <div class="form-actions" style="margin-top:14px;">
-        <button class="btn btn-primary" onclick="guardarInventario()">✅ Registrar conteo</button>
-        <button class="btn btn-ghost" onclick="abrirModalBulk()">📋 Conteo masivo</button>
+
+      <div id="inv-conteo-wrap" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Categoría</th><th>Insumo</th><th>Unidad</th><th>Cantidad</th><th>Obs.</th></tr></thead>
+            <tbody id="inv-conteo-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form-actions" style="margin-top:14px;">
+          <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('inv','inventario')">✅ Guardar inventario</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('inv-conteo-wrap').style.display='none'">Cancelar</button>
+        </div>
       </div>
     </div>
 
@@ -960,15 +950,11 @@
       <input type="month" id="filt-inv-mes" onchange="filtrarInventario()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;">
       <div class="filters-right">
         <button class="btn btn-ghost btn-sm" onclick="exportarCSV('inventario')">⬇ CSV</button>
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ Importar<input type="file" accept=".csv" onchange="importarCSV(event,'inventario')" style="display:none;"></label>
       </div>
     </div>
-
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
-        </thead>
+        <thead><tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr></thead>
         <tbody id="tabla-inventario"></tbody>
       </table>
     </div>
@@ -978,14 +964,12 @@
   <!-- INVENTARIO LOCAL -->
   <!-- ══════════════════════════════════════════ -->
   <div id="tab-inventario-local" class="tab-content">
-    <div class="section-title">Inventario físico local</div>
-    <div class="section-sub">Conteo real de insumos en el local · complementa el inventario de bodega</div>
-
-    <div class="tip">💡 Registra aquí los insumos que están en el local (no en bodega). El stock total es bodega + local.</div>
+    <div class="section-title">Inventario físico — Local</div>
+    <div class="section-sub">Conteo de insumos en el local · se suma al stock de bodega</div>
+    <div class="tip">💡 Selecciona tu nombre, revisa la fecha y haz clic en "Generar conteo". Completa las cantidades y guarda.</div>
 
     <div class="card">
-      <div class="card-title">Nuevo conteo local</div>
-      <div class="form-grid cols2">
+      <div class="form-grid cols2" style="margin-bottom:12px;">
         <div class="field">
           <label>Fecha conteo</label>
           <input type="date" id="invl-fecha">
@@ -999,33 +983,25 @@
           </select>
         </div>
         <div class="field">
-          <label>Insumo</label>
-          <select id="invl-insumo" onchange="autoUnidadLocal()">
-            <option value="">Seleccionar insumo</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Unidad</label>
-          <input type="text" id="invl-unidad" readonly>
-        </div>
-        <div class="field">
-          <label>Stock contado</label>
-          <input type="number" id="invl-stock" placeholder="0" min="0" step="any">
-        </div>
-        <div class="field">
           <label>Responsable</label>
-          <select id="invl-responsable">
-            <option value="">Seleccionar responsable</option>
-          </select>
+          <select id="invl-responsable"><option value="">Seleccionar responsable</option></select>
         </div>
-        <div class="field field-span2">
-          <label>Observación</label>
-          <input type="text" id="invl-obs" placeholder="Estado del insumo, anomalías, etc.">
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')">📋 Generar conteo</button>
         </div>
       </div>
-      <div class="form-actions" style="margin-top:14px;">
-        <button class="btn btn-primary" onclick="guardarInventarioLocal()">✅ Registrar conteo local</button>
-        <button class="btn btn-ghost" onclick="abrirModalBulkLocal()">📋 Conteo masivo</button>
+
+      <div id="invl-conteo-wrap" style="display:none;">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Categoría</th><th>Insumo</th><th>Unidad</th><th>Cantidad</th><th>Obs.</th></tr></thead>
+            <tbody id="invl-conteo-tbody"></tbody>
+          </table>
+        </div>
+        <div class="form-actions" style="margin-top:14px;">
+          <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('invl','inventario_local')">✅ Guardar inventario local</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('invl-conteo-wrap').style.display='none'">Cancelar</button>
+        </div>
       </div>
     </div>
 
@@ -1038,15 +1014,11 @@
       <input type="month" id="filt-invl-mes" onchange="filtrarInventarioLocal()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;">
       <div class="filters-right">
         <button class="btn btn-ghost btn-sm" onclick="exportarCSV('inventario_local')">⬇ CSV</button>
-        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ Importar<input type="file" accept=".csv" onchange="importarCSV(event,'inventario_local')" style="display:none;"></label>
       </div>
     </div>
-
     <div class="table-wrap">
       <table>
-        <thead>
-          <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
-        </thead>
+        <thead><tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr></thead>
         <tbody id="tabla-inventario-local"></tbody>
       </table>
     </div>
@@ -1369,7 +1341,7 @@ const PERFILES = {
     nombre: 'Vendedor PO',
     icon: '🏪',
     local: 'Plaza Oeste',
-    tabs: ['ingresos','salidas','inventario','stock'],
+    tabs: ['ingresos','salidas','inventario','inventario-local','stock'],
     defaultTab: 'salidas',
     localFijo: true,
   },
@@ -1377,7 +1349,7 @@ const PERFILES = {
     nombre: 'Vendedor PAJ',
     icon: '🏪',
     local: 'Pajaritos',
-    tabs: ['ingresos','salidas','inventario','stock'],
+    tabs: ['ingresos','salidas','inventario','inventario-local','stock'],
     defaultTab: 'salidas',
     localFijo: true,
   },
@@ -1385,7 +1357,7 @@ const PERFILES = {
     nombre: 'Jefe de local',
     icon: '👔',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','inventario','stock'],
+    tabs: ['dashboard','ingresos','salidas','inventario','inventario-local','stock'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1393,7 +1365,7 @@ const PERFILES = {
     nombre: 'Admin',
     icon: '⚙️',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','inventario','stock','cuadre','config'],
+    tabs: ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','config'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1422,9 +1394,9 @@ function seleccionarPerfil(id) {
     document.getElementById('globalLocalBadge').textContent = perfil.local;
     document.getElementById('globalLocalBadge').style.cursor = 'default';
     // Fijar visualmente los selectores de local en formularios
-    ['ing-local','sal-local','inv-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
+    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
     // Pre-seleccionar local en filtros
-    ['filt-ing-local','filt-sal-local','filt-inv-local','filt-stock-local'].forEach(id => {
+    ['filt-ing-local','filt-sal-local','filt-inv-local','filt-invl-local','filt-stock-local'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = perfil.local;
     });
@@ -1432,8 +1404,15 @@ function seleccionarPerfil(id) {
     globalLocal = '';
     document.getElementById('globalLocalBadge').textContent = 'Todos los locales';
     document.getElementById('globalLocalBadge').style.cursor = 'pointer';
-    ['ing-local','sal-local','inv-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
+    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
   }
+
+  // Pre-llenar fecha de hoy en todos los formularios de conteo
+  const hoy = new Date().toISOString().split('T')[0];
+  ['ing-fecha','sal-fecha','inv-fecha','invl-fecha'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = hoy;
+  });
 
   // Poblar responsables según local del perfil
   const localResp = perfil.local || 'ambos';
@@ -1450,7 +1429,7 @@ function seleccionarPerfil(id) {
 }
 
 function aplicarTabsPerfil(perfil) {
-  const allTabs = ['dashboard','ingresos','salidas','inventario','stock','cuadre','config'];
+  const allTabs = ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','config'];
   allTabs.forEach(tab => {
     const btn = document.querySelector(`.tab-btn[onclick*="switchTab('${tab}')"]`);
     if (btn) btn.style.display = perfil.tabs.includes(tab) ? '' : 'none';
@@ -1935,43 +1914,93 @@ function filtrarSalidas() {
 // INVENTARIO SEMANAL
 // ══════════════════════════════════════════════════
 // ══════════════════════════════════════════════
+// INVENTARIO MASIVO (Bodega y Local)
+// ══════════════════════════════════════════════
+
+function generarConteoInventario(prefix) {
+  const fecha = document.getElementById(`${prefix}-fecha`).value;
+  const local = document.getElementById(`${prefix}-local`).value;
+  const responsable = document.getElementById(`${prefix}-responsable`).value;
+
+  if (!fecha || !local || !responsable) {
+    toast('⚠️ Selecciona fecha, local y responsable primero', true); return;
+  }
+
+  const tbody = document.getElementById(`${prefix}-conteo-tbody`);
+  const insumos = [...DB.insumos]
+    .filter(ins => !DB.stockOcultos.has(`${ins.id}|${local}`))
+    .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+
+  let catActual = '';
+  let html = '';
+  insumos.forEach(ins => {
+    if (ins.categoria !== catActual) {
+      catActual = ins.categoria;
+      html += `<tr class="cat-header"><td colspan="5">${ICONOS_CAT[catActual] || '📦'} ${catActual}</td></tr>`;
+    }
+    html += `<tr>
+      <td style="color:var(--text-muted);font-size:12px;">${ins.categoria}</td>
+      <td><b>${ins.nombre}</b></td>
+      <td style="color:var(--text-muted);">${ins.unidad}</td>
+      <td><input type="number" class="conteo-input" data-id="${ins.id}" data-unidad="${ins.unidad}"
+        placeholder="—" min="0" step="any"
+        style="width:90px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;"></td>
+      <td><input type="text" class="conteo-obs" data-id="${ins.id}" placeholder="obs."
+        style="width:120px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></td>
+    </tr>`;
+  });
+
+  tbody.innerHTML = html;
+  document.getElementById(`${prefix}-conteo-wrap`).style.display = 'block';
+  // Focus en primer input
+  setTimeout(() => tbody.querySelector('.conteo-input')?.focus(), 100);
+}
+
+function guardarConteoMasivo(prefix, tabla) {
+  const fecha = document.getElementById(`${prefix}-fecha`).value;
+  const local = document.getElementById(`${prefix}-local`).value;
+  const responsable = document.getElementById(`${prefix}-responsable`).value;
+
+  if (!fecha || !local || !responsable) {
+    toast('⚠️ Completa fecha, local y responsable', true); return;
+  }
+
+  const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
+  const records = [];
+  inputs.forEach(inp => {
+    const val = parseFloat(inp.value);
+    if (!isNaN(val) && val >= 0) {
+      const obsEl = inp.closest('tr').querySelector('.conteo-obs');
+      records.push({
+        id: uid(), fecha, local,
+        insumoId: inp.dataset.id,
+        unidad: inp.dataset.unidad,
+        stock: val,
+        responsable,
+        obs: obsEl ? obsEl.value.trim() : ''
+      });
+    }
+  });
+
+  if (records.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
+
+  DB[tabla] = DB[tabla] || [];
+  DB[tabla].push(...records);
+  guardarDB(tabla);
+  sbUpsertMany(tabla, records);
+  document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
+  if (tabla === 'inventario') filtrarInventario();
+  else filtrarInventarioLocal();
+  toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
+}
+
+// ══════════════════════════════════════════════
 // INVENTARIO LOCAL
 // ══════════════════════════════════════════════
 
-function autoUnidadLocal() {
-  const insumoId = document.getElementById('invl-insumo').value;
-  const ins = getInsumo(insumoId);
-  document.getElementById('invl-unidad').value = ins ? ins.unidad : '';
-}
-
-function guardarInventarioLocal() {
-  const fecha = document.getElementById('invl-fecha').value;
-  const local = document.getElementById('invl-local').value;
-  const insumoId = document.getElementById('invl-insumo').value;
-  const stock = parseFloat(document.getElementById('invl-stock').value);
-  const responsable = document.getElementById('invl-responsable').value.trim();
-  const obs = document.getElementById('invl-obs').value.trim();
-  const ins = getInsumo(insumoId);
-
-  if (!fecha || !local || !insumoId || isNaN(stock) || !responsable) {
-    toast('⚠️ Completa fecha, local, insumo, stock y responsable', true); return;
-  }
-
-  const rec = { id: uid(), fecha, local, insumoId, unidad: ins ? ins.unidad : '', stock, responsable, obs };
-  DB.inventario_local = DB.inventario_local || [];
-  DB.inventario_local.push(rec);
-  guardarDB('inventario_local');
-  sbUpsertMany('inventario_local', [rec]);
-  toast('✅ Conteo local registrado');
-  ['invl-stock','invl-obs'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('invl-insumo').value = '';
-  document.getElementById('invl-unidad').value = '';
-  filtrarInventarioLocal();
-}
-
 function filtrarInventarioLocal() {
-  const local = document.getElementById('filt-invl-local').value;
-  const mes = document.getElementById('filt-invl-mes').value;
+  const local = document.getElementById('filt-invl-local')?.value;
+  const mes = document.getElementById('filt-invl-mes')?.value;
   let data = [...(DB.inventario_local || [])].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
   if (local) data = data.filter(r => r.local === local);
   if (mes) data = data.filter(r => r.fecha && r.fecha.startsWith(mes));
@@ -1984,7 +2013,7 @@ function filtrarInventarioLocal() {
 
   let html = '';
   cats.forEach(cat => {
-    html += `<tr class="cat-header"><td colspan="8">${CATEGORIA_ICONS[cat] || '📦'} ${cat}</td></tr>`;
+    html += `<tr class="cat-header"><td colspan="8">${ICONOS_CAT[cat] || '📦'} ${cat}</td></tr>`;
     grupos[cat].forEach(r => {
       const ins = getInsumo(r.insumoId);
       html += `<tr>
@@ -2000,53 +2029,6 @@ function filtrarInventarioLocal() {
     });
   });
   tbody.innerHTML = html;
-}
-
-function abrirModalBulkLocal() {
-  // Reutiliza el modal bulk pero para inventario_local
-  const modal = document.getElementById('modal-bulk');
-  if (!modal) { toast('⚠️ Modal no disponible', true); return; }
-  // Marcar que el bulk es para local
-  modal.dataset.target = 'inventario_local';
-  modal.style.display = 'flex';
-  poblarBulkLocal();
-}
-
-function poblarBulkLocal() {
-  const tbody = document.getElementById('bulk-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = DB.insumos.map(ins => `
-    <tr>
-      <td>${ins.nombre}</td>
-      <td>${ins.categoria}</td>
-      <td><input type="number" class="bulk-input" data-id="${ins.id}" data-unidad="${ins.unidad}" placeholder="—" min="0" step="any" style="width:80px;padding:4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);"></td>
-      <td>${ins.unidad}</td>
-    </tr>`).join('');
-}
-
-function guardarBulkLocal() {
-  const fecha = document.getElementById('bulk-fecha')?.value;
-  const local = document.getElementById('bulk-local')?.value;
-  const responsable = document.getElementById('bulk-responsable')?.value?.trim();
-  if (!fecha || !local || !responsable) { toast('⚠️ Completa fecha, local y responsable', true); return; }
-
-  const inputs = document.querySelectorAll('.bulk-input');
-  const records = [];
-  inputs.forEach(inp => {
-    const val = parseFloat(inp.value);
-    if (!isNaN(val)) {
-      records.push({ id: uid(), fecha, local, insumoId: inp.dataset.id, unidad: inp.dataset.unidad, stock: val, responsable, obs: '' });
-    }
-  });
-
-  if (records.length === 0) { toast('⚠️ Ingresa al menos un valor', true); return; }
-  DB.inventario_local = DB.inventario_local || [];
-  DB.inventario_local.push(...records);
-  guardarDB('inventario_local');
-  sbUpsertMany('inventario_local', records);
-  cerrarModal();
-  filtrarInventarioLocal();
-  toast(`✅ ${records.length} insumos registrados en inventario local`);
 }
 
 function guardarInventario() {
