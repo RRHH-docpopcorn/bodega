@@ -2181,7 +2181,7 @@ const FORMATO_LB = {
   'Pequeño': 2, 'Mediano': 3.5, 'Balde 3L': 3, 'Balde 5L': 5,
   'Big Pop': 4.5, 'Big Tin 13.5L': 13.5, 'Party Bag': 10,
   'Bolsa chica': 2, 'Refill Balde 3 Litros': 3, 'Refill Balde 5 Litros': 5,
-  'Tarro 13.5L': 13.5,
+  'Tarro 13.5L': 13.5, 'Refill Big Tin': 13.5,
 };
 
 // Insumo → oz/ml/unidades por BATCH completo (15.5 lb)
@@ -2228,30 +2228,16 @@ const FORMATO_MAP = {
   'Balde 3 Litros': 'Balde 3L', 'Balde 3L': 'Balde 3L',
   'Balde 5 Litros': 'Balde 5L', 'Balde 5L': 'Balde 5L',
   'Big Pop': 'Big Pop', 'Big Tin 13.5L': 'Big Tin 13.5L',
+  'Big Tin': 'Big Tin 13.5L',
   'Party Bag': 'Party Bag', 'Bolsa chica': 'Bolsa chica',
   'Refill Balde 3 Litros': 'Refill Balde 3 Litros',
   'Refill Balde 5 Litros': 'Refill Balde 5 Litros',
+  'Refill Big Tin': 'Refill Big Tin',
   'Tarro 13.5L': 'Tarro 13.5L',
 };
 
-// Mapeo nombre insumo sistema → nombre en RECETAS
-const INSUMO_RECETA_MAP = {
-  'Maíz Butterfly': ['Maíz Butterfly', 'Maiz Butterfly sacos 25kg (Celeste)', 'Maíz Butterfly sacos 25kg (Celeste)'],
-  'Aceite de Maíz': ['Aceite de Maíz'],
-  'Azúcar (Mangas) x 10 azucar': ['Azúcar (Mangas) x 10 azucar'],
-  'Klassic Kettle': ['Klassic Kettle'],
-  'Natural Doc Popcorn Butter Red V2': ['Natural Doc Popcorn Butter Red V2'],
-  'Sal en Polvo': ['Sal en Polvo'],
-  'Chocolate Trencito': ['Chocolate Trencito'],
-  'Galletas Oreo': ['Galletas Oreo'],
-  'Chocolate Blanco': ['Chocolate Blanco'],
-  'Apple Crisp': ['Apple Crisp'],
-  'Cheesy Cheddar': ['Cheesy Cheddar'],
-  'Hopping Jalapeño': ['Hopping Jalapeño'],
-  'Mantequilla Calo': ['Mantequilla Calo'],
-  'Caramelo en polvo Caramel Corn 40lib': ['Caramelo en polvo Caramel Corn 40lib'],
-  'Separador Free n Easy': ['Separador Free n Easy'],
-};
+// Mapeo nombre insumo sistema → nombre en RECETAS (ya sincronizados, mapa identidad)
+const INSUMO_RECETA_MAP = {};
 
 // ══════════════════════════════════════════════════
 // PLANIFICADOR DE COMPRAS
@@ -2712,6 +2698,14 @@ function renderCuadre() {
     mixPorSabor[k].lb += v.unidades * lb;
   });
 
+  // Agrupar también por sabor para subtotales
+  const totalPorSabor = {};
+  Object.values(mixPorSabor).forEach(r => {
+    if (!totalPorSabor[r.sabor]) totalPorSabor[r.sabor] = { unidades: 0, lb: 0 };
+    totalPorSabor[r.sabor].unidades += r.unidades;
+    totalPorSabor[r.sabor].lb += r.lb;
+  });
+
   const FORMATO_ORDEN = ['Pequeño','Mediano','Big Pop','Balde 3 Litros','Balde 5 Litros','Party Bag','Big Tin 13.5L','Refill Balde 3 Litros','Refill Balde 5 Litros','Refill Big Tin'];
   const mixRows = Object.values(mixPorSabor).sort((a,b) => {
     if (a.sabor !== b.sabor) return a.sabor.localeCompare(b.sabor);
@@ -2720,15 +2714,32 @@ function renderCuadre() {
     if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
     return b.lb - a.lb;
   });
-  document.getElementById('tabla-mix-ventas').innerHTML = mixRows.map(r => {
+
+  // Renderizar con subtotales por sabor
+  let htmlMix = '';
+  let saborActual = '';
+  mixRows.forEach(r => {
+    // Si cambia el sabor, agrega fila de subtotal del sabor anterior
+    if (saborActual && r.sabor !== saborActual) {
+      const tot = totalPorSabor[saborActual];
+      const pctTot = totalLb > 0 ? (tot.lb / totalLb * 100).toFixed(1) : 0;
+      htmlMix += `<tr style="background:var(--surface2);font-weight:700;border-top:1px solid var(--yellow);">
+        <td colspan="2" style="color:var(--yellow);">↳ Total ${saborActual}</td>
+        <td style="text-align:right;color:var(--yellow);">${tot.unidades.toLocaleString('es-CL')}</td>
+        <td style="text-align:right;color:var(--yellow);">${tot.lb.toFixed(0)} lb</td>
+        <td style="text-align:right;color:var(--yellow);">${(tot.lb/BATCH_LB).toFixed(1)}</td>
+        <td style="text-align:right;color:var(--yellow);">${pctTot}%</td>
+      </tr>`;
+    }
+    saborActual = r.sabor;
     const batches = r.lb / BATCH_LB;
     const pct = totalLb > 0 ? (r.lb / totalLb * 100).toFixed(1) : 0;
-    return `<tr>
+    htmlMix += `<tr>
       <td><b>${r.sabor}</b></td>
       <td>${r.formato}</td>
-      <td>${r.unidades.toLocaleString('es-CL')}</td>
-      <td>${r.lb.toFixed(0)} lb</td>
-      <td>${batches.toFixed(2)}</td>
+      <td style="text-align:right;">${r.unidades.toLocaleString('es-CL')}</td>
+      <td style="text-align:right;">${r.lb.toFixed(0)} lb</td>
+      <td style="text-align:right;">${batches.toFixed(2)}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px;">
           <div class="progress-wrap" style="width:80px;"><div class="progress-bar green" style="width:${pct}%"></div></div>
@@ -2736,7 +2747,20 @@ function renderCuadre() {
         </div>
       </td>
     </tr>`;
-  }).join('');
+  });
+  // Último subtotal
+  if (saborActual) {
+    const tot = totalPorSabor[saborActual];
+    const pctTot = totalLb > 0 ? (tot.lb / totalLb * 100).toFixed(1) : 0;
+    htmlMix += `<tr style="background:var(--surface2);font-weight:700;border-top:1px solid var(--yellow);">
+      <td colspan="2" style="color:var(--yellow);">↳ Total ${saborActual}</td>
+      <td style="text-align:right;color:var(--yellow);">${tot.unidades.toLocaleString('es-CL')}</td>
+      <td style="text-align:right;color:var(--yellow);">${tot.lb.toFixed(0)} lb</td>
+      <td style="text-align:right;color:var(--yellow);">${(tot.lb/BATCH_LB).toFixed(1)}</td>
+      <td style="text-align:right;color:var(--yellow);">${pctTot}%</td>
+    </tr>`;
+  }
+  document.getElementById('tabla-mix-ventas').innerHTML = htmlMix;
 
   // Cuadre por insumo
   const tbody = document.getElementById('tabla-cuadre');
