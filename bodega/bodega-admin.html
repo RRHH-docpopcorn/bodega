@@ -2575,14 +2575,14 @@ async function leerVentasAirtable(mes, localFiltro) {
   let resultado = allRecords
     .map(r => {
       const f = r.fields || {};
-      const sabor    = f['Sabor'] || f['Producto'] || '';
-      const formato  = f['Formato'] || '';
+      const sabor    = f['Sabor'] || '';
+      const formato  = f['Formato'] || f['Producto'] || '';
       const unidades = Number(f['Unidades'] || 0);
       const localId  = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
-      const esBebida = !f['Sabor'] && (f['Producto'] || '').toLowerCase().includes('bebida');
+      const esBebida = (f['Sabor'] || '').toLowerCase().includes('bebida');
       return { sabor, formato, unidades, localId, esBebida };
     })
-    .filter(r => r.unidades > 0 && r.sabor && (r.formato || r.esBebida));
+    .filter(r => r.unidades > 0 && r.sabor && r.formato);
 
   // Filtrar por local si se especificó
   if (localFiltro && LOCAL_IDS[localFiltro]) {
