@@ -2536,7 +2536,7 @@ async function leerVentasAirtable(mes, localFiltro) {
       max_tokens: 1000,
       messages: [{
         role: 'user',
-        content: `Fetch Airtable records from base ${BASE} table ${TABLE}. Filter: tipo=productos, fecha between ${fechaInicio} and ${fechaFin}${local ? ', local contains ' + local : ''}. Return JSON array with fields: sabor, formato, unidades, fecha, local. Cursor: ${cursor || 'start'}`
+        content: `Fetch Airtable records from base ${BASE} table ${TABLE}. Filter: tipo=productos, fecha between ${fechaInicio} and ${fechaFin}${localFiltro ? ', local contains ' + localFiltro : ''}. Return JSON array with fields: sabor, formato, unidades, fecha, local. Cursor: ${cursor || 'start'}`
       }],
       mcp_servers: [{
         type: 'url',
