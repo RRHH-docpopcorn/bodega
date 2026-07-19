@@ -1922,7 +1922,7 @@ function generarConteoInventario(prefix) {
   insumos.forEach(ins => {
     if (ins.categoria !== catActual) {
       catActual = ins.categoria;
-      html += `<tr class="cat-header"><td colspan="5">${CATEGORIA_ICONS[catActual] || '📦'} ${catActual}</td></tr>`;
+      html += `<tr class="cat-header"><td colspan="5">${ICONOS_CAT[catActual] || '📦'} ${catActual}</td></tr>`;
     }
     html += `<tr>
       <td style="color:var(--text-muted);font-size:12px;">${ins.categoria}</td>
@@ -1999,7 +1999,7 @@ function filtrarInventarioLocal() {
 
   let html = '';
   cats.forEach(cat => {
-    html += `<tr class="cat-header"><td colspan="8">${CATEGORIA_ICONS[cat] || '📦'} ${cat}</td></tr>`;
+    html += `<tr class="cat-header"><td colspan="8">${ICONOS_CAT[cat] || '📦'} ${cat}</td></tr>`;
     grupos[cat].forEach(r => {
       const ins = getInsumo(r.insumoId);
       html += `<tr>
