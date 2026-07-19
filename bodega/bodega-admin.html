@@ -2546,9 +2546,9 @@ async function leerVentasAirtable(mes, localFiltro) {
     };
 
     // Direct Airtable API call via pagination
-    const fields = ['Sabor', 'Formato', 'Unidades', 'periodo_texto', 'Tipo', 'Local'];
+    const fields = ['Sabor', 'Formato', 'Unidades', 'periodo_texto', 'Tipo', 'Local', 'Producto'];
     const params = new URLSearchParams({
-      'filterByFormula': `AND({Tipo}="productos",{periodo_texto}="${mes}",{Sabor}!="")`,
+      'filterByFormula': `AND({Tipo}="productos",{periodo_texto}="${mes}",{Unidades}>0)`,
       'pageSize': 100
     });
     fields.forEach(f => params.append('fields[]', f));
@@ -2575,13 +2575,14 @@ async function leerVentasAirtable(mes, localFiltro) {
   let resultado = allRecords
     .map(r => {
       const f = r.fields || {};
-      const sabor    = f['Sabor'] || '';
+      const sabor    = f['Sabor'] || f['Producto'] || '';
       const formato  = f['Formato'] || '';
       const unidades = Number(f['Unidades'] || 0);
       const localId  = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
-      return { sabor, formato, unidades, localId };
+      const esBebida = !f['Sabor'] && (f['Producto'] || '').toLowerCase().includes('bebida');
+      return { sabor, formato, unidades, localId, esBebida };
     })
-    .filter(r => r.unidades > 0 && r.sabor && r.formato);
+    .filter(r => r.unidades > 0 && r.sabor && (r.formato || r.esBebida));
 
   // Filtrar por local si se especificó
   if (localFiltro && LOCAL_IDS[localFiltro]) {
@@ -2703,9 +2704,9 @@ function renderCuadre() {
   mixCard.style.display = 'block';
   const mixPorSabor = {};
   ventas.forEach(v => {
-    const k = v.sabor + '|' + v.formato;
-    if (!mixPorSabor[k]) mixPorSabor[k] = { sabor: v.sabor, formato: v.formato, unidades: 0, lb: 0 };
-    const lb = FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0;
+    const k = v.sabor + '|' + (v.formato || 'Bebida');
+    if (!mixPorSabor[k]) mixPorSabor[k] = { sabor: v.sabor, formato: v.formato || '—', unidades: 0, lb: 0, esBebida: v.esBebida };
+    const lb = v.esBebida ? 0 : (FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0);
     mixPorSabor[k].unidades += v.unidades;
     mixPorSabor[k].lb += v.unidades * lb;
   });
