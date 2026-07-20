@@ -646,8 +646,6 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
-    <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario Bodega</button>
-    <button class="tab-btn" onclick="switchTab('inventario-local')">🏪 Inventario Local</button>
     <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
     <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
@@ -1039,7 +1037,7 @@
       <table>
         <thead>
           <tr>
-            <th>Insumo</th><th>Local</th><th>Stock est.</th><th>Mín.</th><th>Cobertura</th><th>Barra</th><th>Estado</th><th></th>
+            <th>Insumo</th><th>Local</th><th>Bodega</th><th>Local</th><th>Total</th><th>Mín.</th><th>Cobertura</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-stock"></tbody>
@@ -2215,6 +2213,12 @@ function renderStock() {
     if (filasVisibles.length === 0) return;
     html += cabeceraCategoria(cat, 8);
     filasVisibles.forEach(f => {
+      const stockBodega = f.res !== null
+        ? (Number.isInteger(f.res.anclaStock + f.res.ingresos - f.res.salidas)
+            ? Math.round(f.res.anclaStock + f.res.ingresos - f.res.salidas)
+            : (f.res.anclaStock + f.res.ingresos - f.res.salidas).toFixed(1))
+        : '—';
+      const stockLocalVal = f.res !== null ? (f.res.stockLocal || 0) : '—';
       const stockStr = f.stockEst !== null
         ? `<b>${Number.isInteger(f.stockEst) ? f.stockEst : Number(f.stockEst) % 1 === 0 ? Math.round(f.stockEst) : f.stockEst.toFixed(1)}</b> ${f.ins.unidad}`
         : '<span style="color:var(--text-dim)">Sin ancla</span>';
@@ -2235,12 +2239,11 @@ function renderStock() {
       html += `<tr style="${rowStyle}">
         <td><b>${f.ins.nombre}</b></td>
         <td>${chipLocal(f.l)}</td>
-        <td>${stockStr}</td>
+        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockBodega + ' ' + f.ins.unidad : '<span style="color:var(--text-dim)">—</span>'}</td>
+        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockLocalVal + ' ' + f.ins.unidad : '—'}</td>
+        <td style="text-align:right;">${stockStr}</td>
         <td>${f.ins.minimo} ${f.ins.unidad}</td>
         <td>${f.dias} d.</td>
-        <td style="min-width:100px;">
-          <div class="progress-wrap"><div class="progress-bar ${barClass}" style="width:${pct}%"></div></div>
-        </td>
         <td>${sem}</td>
         <td>${btnOcultar}</td>
       </tr>`;
