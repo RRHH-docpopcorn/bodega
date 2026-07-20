@@ -112,6 +112,29 @@
     margin: 0 auto;
   }
 
+  /* Stock en vivo usa ancho completo para mostrar todas las columnas */
+  #tab-stock .table-wrap {
+    overflow-x: visible;
+  }
+  #tab-stock table {
+    width: 100%;
+    table-layout: fixed;
+  }
+  #tab-stock table th, #tab-stock table td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #tab-stock table th:first-child, #tab-stock table td:first-child {
+    min-width: 160px;
+  }
+
+  @media (min-width: 900px) {
+    #tab-stock {
+      max-width: 100%;
+    }
+  }
+
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
@@ -647,6 +670,8 @@
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
     <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
+    <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
+    <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
     <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
@@ -1539,6 +1564,9 @@ function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   event.currentTarget.classList.add('active');
+  // Expandir ancho para pestañas con tablas anchas
+  const mainEl = document.querySelector('.main');
+  if (mainEl) mainEl.style.maxWidth = ['stock','cuadre'].includes(id) ? '1400px' : '960px';
   if (id === 'dashboard') renderDashboard();
   if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); filtrarIngresos(); }
   if (id === 'salidas') { poblarSelectInsumos('sal-insumo'); filtrarSalidas(); }
