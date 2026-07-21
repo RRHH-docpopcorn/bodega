@@ -1032,7 +1032,7 @@
     <div class="section-title">Stock en vivo</div>
     <div class="section-sub">Calculado: último inventario + ingresos − salidas</div>
 
-    <div class="filters">
+    <div class="filters" style="position:sticky;top:97px;z-index:90;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--border);">
       <select onchange="renderStock()" id="filt-stock-local">
         <option value="">Todos los locales</option>
         <option value="Plaza Oeste">Plaza Oeste</option>
@@ -1058,9 +1058,9 @@
 
     <div class="table-wrap">
       <table>
-        <thead>
+        <thead style="position:sticky;top:145px;z-index:89;background:var(--surface);">
           <tr>
-            <th>Insumo</th><th>Local</th><th>Bodega</th><th>Local</th><th>Total</th><th>Mín.</th><th>Cobertura</th><th>Estado</th><th></th>
+            <th>Insumo</th><th>Local</th><th>Últ. inventario</th><th>Bodega</th><th>Local</th><th>Total</th><th>Mín.</th><th>Cobertura</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-stock"></tbody>
@@ -1767,13 +1767,14 @@ function renderDashboard() {
     cats.forEach(cat => {
       html += cabeceraCategoria(cat, 5);
       grupos[cat].forEach(f => {
-        const stockStr = f.res !== null ? (Number.isInteger(f.res.stockEstimado) ? f.res.stockEstimado : Math.round(f.res.stockEstimado)) + ' ' + f.ins.unidad : '<span style="color:var(--text-dim)">Sin ancla</span>';
+        const stockStr = f.res !== null ? fmtNum(f.res.stockEstimado, f.ins.unidad) : '<span style="color:var(--text-dim)">Sin ancla</span>';
         let sem = '';
         if (f.estado === 'verde') sem = `<span class="semaforo verde"><span class="dot"></span>OK</span>`;
         else if (f.estado === 'amarillo') sem = `<span class="semaforo amarillo"><span class="dot"></span>Bajo</span>`;
         else if (f.estado === 'rojo') sem = `<span class="semaforo rojo"><span class="dot"></span>Crítico</span>`;
         else sem = `<span class="chip">Sin conteo</span>`;
-        html += `<tr>
+        const rowDisplay = _catColapsadas.has(f.ins.categoria || 'Otros') ? 'display:none;' : '';
+        html += `<tr style="${rowDisplay}" data-cat="${(f.ins.categoria || 'Otros').replace(/"/g,'&quot;')}">
           <td><b>${f.ins.nombre}</b></td>
           <td>${chipLocal(f.l)}</td>
           <td>${stockStr}</td>
@@ -2215,7 +2216,7 @@ function renderStock() {
   });
 
   const tbody = document.getElementById('tabla-stock');
-  if (filas.length === 0) { tbody.innerHTML = noData(8); return; }
+  if (filas.length === 0) { tbody.innerHTML = noData(10); return; }
 
   const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3 };
   filas.sort((a, b) => {
@@ -2237,16 +2238,12 @@ function renderStock() {
     // Verificar si hay filas visibles en esta categoría
     const filasVisibles = grupos[cat].filter(f => !f.esOculto || mostrarOcultos);
     if (filasVisibles.length === 0) return;
-    html += cabeceraCategoria(cat, 8);
+    html += cabeceraCategoria(cat, 10);
     filasVisibles.forEach(f => {
-      const stockBodega = f.res !== null
-        ? (Number.isInteger(f.res.anclaStock + f.res.ingresos - f.res.salidas)
-            ? Math.round(f.res.anclaStock + f.res.ingresos - f.res.salidas)
-            : (f.res.anclaStock + f.res.ingresos - f.res.salidas).toFixed(1))
-        : '—';
-      const stockLocalVal = f.res !== null ? (f.res.stockLocal || 0) : '—';
+      const stockBodega = f.res !== null ? fmtNum(f.res.anclaStock + f.res.ingresos - f.res.salidas, f.ins.unidad) : '—';
+      const stockLocalVal = calcularStockLocal(f.ins.id, f.l);
       const stockStr = f.stockEst !== null
-        ? `<b>${Number.isInteger(f.stockEst) ? f.stockEst : Number(f.stockEst) % 1 === 0 ? Math.round(f.stockEst) : f.stockEst.toFixed(1)}</b> ${f.ins.unidad}`
+        ? `<b>${fmtNum(f.stockEst, f.ins.unidad)}</b>`
         : '<span style="color:var(--text-dim)">Sin ancla</span>';
       const pct = f.stockEst !== null && f.ins.minimo > 0
         ? Math.min(100, Math.round((f.stockEst / f.ins.minimo) * 100)) : 0;
@@ -2258,15 +2255,17 @@ function renderStock() {
       else sem = `<span class="chip">Sin conteo</span>`;
 
       const rowStyle = f.esOculto ? 'opacity:0.4;' : '';
+      const rowDisplay = _catColapsadas.has(f.ins.categoria || 'Otros') ? 'display:none;' : '';
       const btnOcultar = `<button class="btn-icon" title="${f.esOculto ? 'Mostrar' : 'Ocultar'}"
         onclick="toggleOcultoStock('${f.ins.id}','${f.l}')"
         style="font-size:14px;">${f.esOculto ? '👁' : '🙈'}</button>`;
 
-      html += `<tr style="${rowStyle}">
+      html += `<tr style="${rowStyle}${rowDisplay}" data-cat="${(f.ins.categoria || 'Otros').replace(/"/g,'&quot;')}">
         <td><b>${f.ins.nombre}</b></td>
         <td>${chipLocal(f.l)}</td>
-        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockBodega + ' ' + f.ins.unidad : '<span style="color:var(--text-dim)">—</span>'}</td>
-        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockLocalVal + ' ' + f.ins.unidad : '—'}</td>
+        <td style="text-align:center;font-size:12px;color:${f.res ? 'var(--text-muted)' : 'var(--text-dim)'};">${f.res ? f.res.anclaFecha : '—'}</td>
+        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockBodega : '<span style="color:var(--text-dim)">—</span>'}</td>
+        <td style="text-align:right;color:var(--text-muted);">${stockLocalVal > 0 ? fmtNum(stockLocalVal, f.ins.unidad) : '—'}</td>
         <td style="text-align:right;">${stockStr}</td>
         <td>${f.ins.minimo} ${f.ins.unidad}</td>
         <td>${f.dias} d.</td>
@@ -3092,10 +3091,39 @@ function agruparPorCategoria(filas, getCat) {
   return { grupos, cats };
 }
 
+// Estado de categorías colapsadas
+const _catColapsadas = new Set();
+
+// Formatear número: sin decimales, con separador de miles
+function fmtNum(n, unidad) {
+  if (n === null || n === undefined || isNaN(n)) return '<span style="color:var(--text-dim)">—</span>';
+  return Math.round(n).toLocaleString('es-CL') + (unidad ? ' ' + unidad : '');
+}
+
+function toggleCategoria(cat) {
+  if (_catColapsadas.has(cat)) {
+    _catColapsadas.delete(cat);
+  } else {
+    _catColapsadas.add(cat);
+  }
+  // Mostrar/ocultar filas de esa categoría
+  document.querySelectorAll(`[data-cat="${CSS.escape(cat)}"]`).forEach(row => {
+    row.style.display = _catColapsadas.has(cat) ? 'none' : '';
+  });
+  // Actualizar ícono del header
+  const btn = document.querySelector(`[data-cat-toggle="${CSS.escape(cat)}"]`);
+  if (btn) btn.textContent = _catColapsadas.has(cat) ? '▶' : '▼';
+}
+
 function cabeceraCategoria(cat, colspan) {
   const icon = ICONOS_CAT[cat] || '📋';
-  return `<tr class="cat-header-row">
-    <td colspan="${colspan}"><span class="cat-header-label">${icon} ${cat}</span></td>
+  const collapsed = _catColapsadas.has(cat);
+  const arrow = collapsed ? '▶' : '▼';
+  return `<tr class="cat-header-row" onclick="toggleCategoria('${cat.replace(/'/g,"\\'")}');" style="cursor:pointer;user-select:none;">
+    <td colspan="${colspan}">
+      <span class="cat-header-label">${icon} ${cat}</span>
+      <span data-cat-toggle="${cat}" style="float:right;font-size:11px;color:var(--text-muted);">${arrow}</span>
+    </td>
   </tr>`;
 }
 
