@@ -112,7 +112,20 @@
     margin: 0 auto;
   }
 
-  /* Stock en vivo — anchos de columna optimizados */
+  /* Config — tabla de insumos */
+  #tab-config .table-wrap table { table-layout: fixed; width: 100%; }
+  #tab-config .table-wrap table thead { position: sticky; top: 145px; z-index: 89; background: var(--surface); }
+  #tab-config .table-wrap table th, #tab-config .table-wrap table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 6px; vertical-align: middle; }
+  #tab-config .table-wrap table th:nth-child(1), #tab-config .table-wrap table td:nth-child(1) { width: 180px; white-space: normal; }
+  #tab-config .table-wrap table th:nth-child(2), #tab-config .table-wrap table td:nth-child(2) { width: 100px; }
+  #tab-config .table-wrap table th:nth-child(3), #tab-config .table-wrap table td:nth-child(3) { width: 80px; text-align: center; }
+  #tab-config .table-wrap table th:nth-child(4), #tab-config .table-wrap table td:nth-child(4) { width: 70px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(5), #tab-config .table-wrap table td:nth-child(5) { width: 70px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(6), #tab-config .table-wrap table td:nth-child(6) { width: 90px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(7), #tab-config .table-wrap table td:nth-child(7) { width: 80px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(8), #tab-config .table-wrap table td:nth-child(8) { width: 90px; text-align: center; }
+  #tab-config .table-wrap table th:nth-child(9), #tab-config .table-wrap table td:nth-child(9) { width: 120px; }
+  #tab-config .table-wrap table th:nth-child(10), #tab-config .table-wrap table td:nth-child(10) { width: 60px; text-align: center; }
   #tab-stock table { table-layout: fixed; width: 100%; }
   #tab-stock table th, #tab-stock table td { vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 6px; }
   #tab-stock table th:nth-child(1), #tab-stock table td:nth-child(1) { width: 200px; white-space: normal; } /* Insumo */
@@ -1555,7 +1568,7 @@ function switchTab(id) {
   event.currentTarget.classList.add('active');
   // Expandir ancho para pestañas con tablas anchas
   const mainEl = document.querySelector('.main');
-  if (mainEl) mainEl.style.maxWidth = ['stock','cuadre'].includes(id) ? '1400px' : '960px';
+  if (mainEl) mainEl.style.maxWidth = ['stock','cuadre','config'].includes(id) ? '1400px' : '960px';
   if (id === 'dashboard') renderDashboard();
   if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); filtrarIngresos(); }
   if (id === 'salidas') { poblarSelectInsumos('sal-insumo'); filtrarSalidas(); }
