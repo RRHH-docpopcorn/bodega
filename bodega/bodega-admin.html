@@ -3015,7 +3015,12 @@ function guardarInsumo() {
     DB.insumos.push({ id: uid(), nombre, categoria, unidad, minimo, critico, consumoSemanal, local, proveedor, costo });
   }
   guardarDB('insumos');
-  sbUpsertMany('insumos', DB.insumos);
+  // Upsert solo el insumo editado con campos limpios
+  const insActual = DB.insumos.find(i => i.id === (editId || DB.insumos[DB.insumos.length-1].id));
+  if (insActual) {
+    const { id, nombre: n2, categoria: c2, unidad: u2, minimo: m2, critico: cr2, consumoSemanal: cs2, local: l2, proveedor: p2, costo: co2 } = insActual;
+    sbUpsertMany('insumos', [{ id, nombre: n2, categoria: c2, unidad: u2, minimo: m2, critico: cr2, consumoSemanal: cs2, local: l2, proveedor: p2, costo: co2 }]);
+  }
   toast('✅ Insumo guardado');
   limpiarFormInsumo();
   renderConfigInsumos();
