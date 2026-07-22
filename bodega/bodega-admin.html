@@ -3015,9 +3015,11 @@ function guardarInsumo() {
     DB.insumos.push({ id: uid(), nombre, categoria, unidad, minimo, critico, consumoSemanal, local, proveedor, costo });
   }
   guardarDB('insumos');
+  sbUpsertMany('insumos', DB.insumos);
   toast('✅ Insumo guardado');
   limpiarFormInsumo();
   renderConfigInsumos();
+  renderStock();
 }
 
 function limpiarFormInsumo() {
