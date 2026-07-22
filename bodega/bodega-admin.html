@@ -113,8 +113,9 @@
   }
 
   /* Config — tabla de insumos */
+  #tab-config .table-wrap { max-height: 60vh; overflow-y: auto; }
   #tab-config .table-wrap table { table-layout: fixed; width: 100%; }
-  #tab-config .table-wrap table thead { position: sticky; top: 145px; z-index: 89; background: var(--surface); }
+  #tab-config .table-wrap table thead { position: sticky; top: 0; z-index: 89; background: var(--surface); }
   #tab-config .table-wrap table th, #tab-config .table-wrap table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 6px; vertical-align: middle; }
   #tab-config .table-wrap table th:nth-child(1), #tab-config .table-wrap table td:nth-child(1) { width: 180px; white-space: normal; }
   #tab-config .table-wrap table th:nth-child(2), #tab-config .table-wrap table td:nth-child(2) { width: 100px; }
@@ -757,10 +758,12 @@
           <select id="ing-proveedor" onchange="toggleOtroProveedor(this.value)">
             <option value="">Seleccionar proveedor</option>
             <option value="Alimentos 4M">Alimentos 4M</option>
-            <option value="Carsnack">Carsnack</option>
+            <option value="Andina">Andina</option>
             <option value="Carlos Clean">Carlos Clean</option>
+            <option value="Carsnack">Carsnack</option>
             <option value="Distribuidora Nico">Distribuidora Nico</option>
             <option value="Inv. Internacionales">Inv. Internacionales</option>
+            <option value="Martini">Martini</option>
             <option value="Pop Corn Project">Pop Corn Project</option>
             <option value="Southerm">Southerm</option>
             <option value="Varios">Varios</option>
@@ -1264,10 +1267,24 @@
         </div>
         <div class="field">
           <label>Proveedor principal</label>
-          <input type="text" id="cfg-proveedor" placeholder="Opcional">
+          <select id="cfg-proveedor">
+            <option value="">Seleccionar proveedor</option>
+            <option value="Alimentos 4M">Alimentos 4M</option>
+            <option value="Andina">Andina</option>
+            <option value="Carlos Clean">Carlos Clean</option>
+            <option value="Carsnack">Carsnack</option>
+            <option value="Distribuidora Nico">Distribuidora Nico</option>
+            <option value="Inv. Internacionales">Inv. Internacionales</option>
+            <option value="Martini">Martini</option>
+            <option value="Pop Corn Project">Pop Corn Project</option>
+            <option value="Southerm">Southerm</option>
+            <option value="Varios">Varios</option>
+            <option value="Watts">Watts</option>
+            <option value="Otro">Otro</option>
+          </select>
         </div>
         <div class="field">
-          <label>Costo unitario ($)</label>
+          <label>Costo unitario bruto s/IVA ($) <span style="font-size:11px;color:var(--text-muted);font-weight:400;">· Para integración ERP futura</span></label>
           <input type="number" id="cfg-costo" placeholder="0" min="0" step="any">
         </div>
       </div>
