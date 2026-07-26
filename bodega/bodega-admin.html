@@ -112,6 +112,34 @@
     margin: 0 auto;
   }
 
+  /* Config — tabla de insumos */
+  #tab-config .table-wrap { max-height: 60vh; overflow-y: auto; }
+  #tab-config .table-wrap table { table-layout: fixed; width: 100%; }
+  #tab-config .table-wrap table thead { position: sticky; top: 0; z-index: 89; background: var(--surface); }
+  #tab-config .table-wrap table th, #tab-config .table-wrap table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 6px; vertical-align: middle; }
+  #tab-config .table-wrap table th:nth-child(1), #tab-config .table-wrap table td:nth-child(1) { width: 180px; white-space: normal; }
+  #tab-config .table-wrap table th:nth-child(2), #tab-config .table-wrap table td:nth-child(2) { width: 100px; }
+  #tab-config .table-wrap table th:nth-child(3), #tab-config .table-wrap table td:nth-child(3) { width: 80px; text-align: center; }
+  #tab-config .table-wrap table th:nth-child(4), #tab-config .table-wrap table td:nth-child(4) { width: 70px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(5), #tab-config .table-wrap table td:nth-child(5) { width: 70px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(6), #tab-config .table-wrap table td:nth-child(6) { width: 90px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(7), #tab-config .table-wrap table td:nth-child(7) { width: 80px; text-align: right; }
+  #tab-config .table-wrap table th:nth-child(8), #tab-config .table-wrap table td:nth-child(8) { width: 90px; text-align: center; }
+  #tab-config .table-wrap table th:nth-child(9), #tab-config .table-wrap table td:nth-child(9) { width: 120px; }
+  #tab-config .table-wrap table th:nth-child(10), #tab-config .table-wrap table td:nth-child(10) { width: 60px; text-align: center; }
+  #tab-stock table { table-layout: fixed; width: 100%; }
+  #tab-stock table th, #tab-stock table td { vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 8px 6px; }
+  #tab-stock table th:nth-child(1), #tab-stock table td:nth-child(1) { width: 200px; white-space: normal; } /* Insumo */
+  #tab-stock table th:nth-child(2), #tab-stock table td:nth-child(2) { width: 100px; text-align: center; } /* Local */
+  #tab-stock table th:nth-child(3), #tab-stock table td:nth-child(3) { width: 105px; text-align: center; font-size: 12px; } /* Últ. inventario */
+  #tab-stock table th:nth-child(4), #tab-stock table td:nth-child(4) { width: 110px; text-align: right; } /* Bodega */
+  #tab-stock table th:nth-child(5), #tab-stock table td:nth-child(5) { width: 110px; text-align: right; } /* Local */
+  #tab-stock table th:nth-child(6), #tab-stock table td:nth-child(6) { width: 120px; text-align: right; } /* Total */
+  #tab-stock table th:nth-child(7), #tab-stock table td:nth-child(7) { width: 110px; text-align: right; } /* Mín */
+  #tab-stock table th:nth-child(8), #tab-stock table td:nth-child(8) { width: 80px; text-align: center; } /* Cobertura */
+  #tab-stock table th:nth-child(9), #tab-stock table td:nth-child(9) { width: 90px; text-align: center; } /* Estado */
+  #tab-stock table th:nth-child(10), #tab-stock table td:nth-child(10) { width: 40px; text-align: center; } /* Ocultar */
+
   .tab-content { display: none; }
   .tab-content.active { display: block; }
 
@@ -616,6 +644,18 @@
   </div>
 </div>
 
+
+<!-- PANTALLA DE CONTRASEÑA -->
+<div id="pass-screen" style="position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;">
+  <div style="font-size:32px;font-weight:800;color:var(--yellow);margin-bottom:6px;">🍿 Doc<span style="color:var(--text);font-weight:400;"> Pop Corn</span></div>
+  <div style="color:var(--text-muted);font-size:14px;margin-bottom:32px;">Control de Bodega · Acceso restringido</div>
+  <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:12px;">
+    <input type="password" id="pass-input" placeholder="Contraseña" onkeydown="if(event.key==='Enter')verificarPass()"
+      style="padding:14px;font-size:16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);outline:none;width:100%;">
+    <button onclick="verificarPass()" style="padding:14px;background:var(--yellow);color:#000;font-size:15px;font-weight:800;border:none;border-radius:8px;cursor:pointer;">Entrar</button>
+    <div id="pass-error" style="color:#E74C3C;font-size:13px;text-align:center;display:none;">Contraseña incorrecta</div>
+  </div>
+</div>
 <!-- HEADER -->
 <header>
   <div class="logo">🍿 Doc<span> Pop Corn</span></div>
@@ -634,10 +674,9 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
-    <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario Bodega</button>
-    <button class="tab-btn" onclick="switchTab('inventario-local')">🏪 Inventario Local</button>
     <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
+    <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
   </div>
 </div>
@@ -719,10 +758,12 @@
           <select id="ing-proveedor" onchange="toggleOtroProveedor(this.value)">
             <option value="">Seleccionar proveedor</option>
             <option value="Alimentos 4M">Alimentos 4M</option>
-            <option value="Carsnack">Carsnack</option>
+            <option value="Andina">Andina</option>
             <option value="Carlos Clean">Carlos Clean</option>
+            <option value="Carsnack">Carsnack</option>
             <option value="Distribuidora Nico">Distribuidora Nico</option>
             <option value="Inv. Internacionales">Inv. Internacionales</option>
+            <option value="Martini">Martini</option>
             <option value="Pop Corn Project">Pop Corn Project</option>
             <option value="Southerm">Southerm</option>
             <option value="Varios">Varios</option>
@@ -888,12 +929,14 @@
   <!-- INVENTARIO SEMANAL -->
   <!-- ══════════════════════════════════════════ -->
   <div id="tab-inventario" class="tab-content">
-    <div class="section-title">Inventario físico semanal — Bodega</div>
+    <div class="section-title">Inventario físico semanal</div>
     <div class="section-sub">Conteo real de bodega · base de cálculo de stock</div>
-    <div class="tip">💡 Selecciona tu nombre, revisa la fecha y haz clic en "Generar conteo". Completa las cantidades y guarda.</div>
+
+    <div class="tip">💡 Este conteo reemplaza como "ancla" para el cálculo de stock en vivo. Haz el conteo cada semana al mismo día y hora.</div>
 
     <div class="card">
-      <div class="form-grid cols2" style="margin-bottom:12px;">
+      <div class="card-title">Nuevo conteo físico</div>
+      <div class="form-grid cols2">
         <div class="field">
           <label>Fecha conteo</label>
           <input type="date" id="inv-fecha">
@@ -907,25 +950,33 @@
           </select>
         </div>
         <div class="field">
-          <label>Responsable</label>
-          <select id="inv-responsable"><option value="">Seleccionar responsable</option></select>
+          <label>Insumo</label>
+          <select id="inv-insumo">
+            <option value="">Seleccionar insumo</option>
+          </select>
         </div>
-        <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')">📋 Generar conteo</button>
+        <div class="field">
+          <label>Unidad</label>
+          <input type="text" id="inv-unidad" readonly>
+        </div>
+        <div class="field">
+          <label>Stock contado</label>
+          <input type="number" id="inv-stock" placeholder="0" min="0" step="any">
+        </div>
+        <div class="field">
+          <label>Responsable</label>
+          <select id="inv-responsable">
+            <option value="">Seleccionar responsable</option>
+          </select>
+        </div>
+        <div class="field field-span2">
+          <label>Observación</label>
+          <input type="text" id="inv-obs" placeholder="Estado del insumo, anomalías, etc.">
         </div>
       </div>
-
-      <div id="inv-conteo-wrap" style="display:none;">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Categoría</th><th>Insumo</th><th>Unidad</th><th>Cantidad</th><th>Obs.</th></tr></thead>
-            <tbody id="inv-conteo-tbody"></tbody>
-          </table>
-        </div>
-        <div class="form-actions" style="margin-top:14px;">
-          <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('inv','inventario')">✅ Guardar inventario</button>
-          <button class="btn btn-ghost" onclick="document.getElementById('inv-conteo-wrap').style.display='none'">Cancelar</button>
-        </div>
+      <div class="form-actions" style="margin-top:14px;">
+        <button class="btn btn-primary" onclick="guardarInventario()">✅ Registrar conteo</button>
+        <button class="btn btn-ghost" onclick="abrirModalBulk()">📋 Conteo masivo</button>
       </div>
     </div>
 
@@ -938,11 +989,15 @@
       <input type="month" id="filt-inv-mes" onchange="filtrarInventario()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;">
       <div class="filters-right">
         <button class="btn btn-ghost btn-sm" onclick="exportarCSV('inventario')">⬇ CSV</button>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ Importar<input type="file" accept=".csv" onchange="importarCSV(event,'inventario')" style="display:none;"></label>
       </div>
     </div>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr></thead>
+        <thead>
+          <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
+        </thead>
         <tbody id="tabla-inventario"></tbody>
       </table>
     </div>
@@ -952,46 +1007,8 @@
   <!-- INVENTARIO LOCAL -->
   <!-- ══════════════════════════════════════════ -->
   <div id="tab-inventario-local" class="tab-content">
-    <div class="section-title">Inventario físico — Local</div>
-    <div class="section-sub">Conteo de insumos en el local · se suma al stock de bodega</div>
-    <div class="tip">💡 Selecciona tu nombre, revisa la fecha y haz clic en "Generar conteo". Completa las cantidades y guarda.</div>
-
-    <div class="card">
-      <div class="form-grid cols2" style="margin-bottom:12px;">
-        <div class="field">
-          <label>Fecha conteo</label>
-          <input type="date" id="invl-fecha">
-        </div>
-        <div class="field">
-          <label>Local</label>
-          <select id="invl-local" onchange="poblarResponsable('invl-responsable', this.value)">
-            <option value="">Seleccionar local</option>
-            <option value="Plaza Oeste">Plaza Oeste</option>
-            <option value="Pajaritos">Pajaritos</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Responsable</label>
-          <select id="invl-responsable"><option value="">Seleccionar responsable</option></select>
-        </div>
-        <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')">📋 Generar conteo</button>
-        </div>
-      </div>
-
-      <div id="invl-conteo-wrap" style="display:none;">
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Categoría</th><th>Insumo</th><th>Unidad</th><th>Cantidad</th><th>Obs.</th></tr></thead>
-            <tbody id="invl-conteo-tbody"></tbody>
-          </table>
-        </div>
-        <div class="form-actions" style="margin-top:14px;">
-          <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('invl','inventario_local')">✅ Guardar inventario local</button>
-          <button class="btn btn-ghost" onclick="document.getElementById('invl-conteo-wrap').style.display='none'">Cancelar</button>
-        </div>
-      </div>
-    </div>
+    <div class="section-title">🏪 Inventario físico — Local</div>
+    <div class="section-sub">Conteos registrados por los vendedores en cada local · se suma al stock de bodega</div>
 
     <div class="filters">
       <select onchange="filtrarInventarioLocal()" id="filt-invl-local">
@@ -1004,9 +1021,12 @@
         <button class="btn btn-ghost btn-sm" onclick="exportarCSV('inventario_local')">⬇ CSV</button>
       </div>
     </div>
+
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr></thead>
+        <thead>
+          <tr><th>Fecha</th><th>Local</th><th>Insumo</th><th>Stock contado</th><th>Unidad</th><th>Responsable</th><th>Obs.</th><th></th></tr>
+        </thead>
         <tbody id="tabla-inventario-local"></tbody>
       </table>
     </div>
@@ -1019,7 +1039,7 @@
     <div class="section-title">Stock en vivo</div>
     <div class="section-sub">Calculado: último inventario + ingresos − salidas</div>
 
-    <div class="filters">
+    <div class="filters" style="position:sticky;top:97px;z-index:90;background:var(--bg);padding:8px 0;border-bottom:1px solid var(--border);">
       <select onchange="renderStock()" id="filt-stock-local">
         <option value="">Todos los locales</option>
         <option value="Plaza Oeste">Plaza Oeste</option>
@@ -1045,9 +1065,9 @@
 
     <div class="table-wrap">
       <table>
-        <thead>
+        <thead style="position:sticky;top:145px;z-index:89;background:var(--surface);">
           <tr>
-            <th>Insumo</th><th>Local</th><th>Stock est.</th><th>Mín.</th><th>Cobertura</th><th>Barra</th><th>Estado</th><th></th>
+            <th>Insumo</th><th>Local</th><th>Últ. inventario</th><th>Bodega</th><th>Local</th><th>Total</th><th>Mín.</th><th>Cobertura</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-stock"></tbody>
@@ -1066,7 +1086,7 @@
 
     <!-- Filtros -->
     <div class="filters">
-      <select id="filt-cuadre-local" onchange="renderCuadre()">
+      <select id="filt-cuadre-local" onchange="calcularCuadre()">
         <option value="">Todos los locales</option>
         <option value="Plaza Oeste">Plaza Oeste</option>
         <option value="Pajaritos">Pajaritos</option>
@@ -1125,6 +1145,86 @@
   <!-- ══════════════════════════════════════════ -->
   <!-- CONFIGURACIÓN DE INSUMOS -->
   <!-- ══════════════════════════════════════════ -->
+  <!-- PLANIFICADOR DE COMPRAS -->
+  <div id="tab-planificador" class="tab-content">
+    <div class="section-title">🛒 Planificador de compras</div>
+    <div class="section-sub">Basado en el mix del último cuadre calculado, estima cuánto comprar para alcanzar una meta de ventas</div>
+
+    <div class="tip">💡 Primero calcula el Cuadre de stock de un mes de referencia, luego ingresa tu meta aquí.</div>
+
+    <div class="filters" style="align-items:flex-end;gap:16px;flex-wrap:wrap;">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Local</label>
+        <select id="plan-local" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:15px;">
+          <option value="">Ambos locales</option>
+          <option value="Plaza Oeste">Plaza Oeste</option>
+          <option value="Pajaritos">Pajaritos</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Meta de ventas brutas</label>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:var(--text-muted);">$</span>
+          <input type="number" id="plan-meta" placeholder="Ej: 15000000" min="0" step="100000"
+            style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:15px;width:200px;">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="calcularPlanificador()">📊 Calcular compras</button>
+    </div>
+
+    <div id="plan-estado" style="padding:12px 0;color:var(--text-muted);font-size:14px;"></div>
+
+    <!-- KPIs -->
+    <div id="plan-kpis" style="display:none;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:16px 0;">
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-meta">—</div>
+          <div class="kpi-lab">Meta ventas</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-batches">—</div>
+          <div class="kpi-lab">Batches a producir</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-libras">—</div>
+          <div class="kpi-lab">Libras a producir</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="plan-kpi-ref">—</div>
+          <div class="kpi-lab">Mes de referencia</div>
+        </div>
+      </div>
+
+      <!-- Mix proyectado -->
+      <div class="section-title" style="font-size:14px;margin:16px 0 8px;">Mix proyectado por sabor</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Sabor</th>
+            <th style="text-align:right;">% del mix</th>
+            <th style="text-align:right;">Batches</th>
+            <th style="text-align:right;">Libras</th>
+            <th style="text-align:right;">Venta estimada</th>
+          </tr></thead>
+          <tbody id="plan-mix-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Lista de compras -->
+      <div class="section-title" style="font-size:14px;margin:20px 0 8px;">📦 Lista de compras</div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr>
+            <th>Insumo</th>
+            <th style="text-align:right;">Unidad</th>
+            <th style="text-align:right;">Cantidad a comprar</th>
+          </tr></thead>
+          <tbody id="plan-compras-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div id="tab-config" class="tab-content">
     <div class="section-title">Configuración de insumos</div>
     <div class="section-sub">Define los insumos, umbrales de alerta y consumo promedio</div>
@@ -1167,10 +1267,24 @@
         </div>
         <div class="field">
           <label>Proveedor principal</label>
-          <input type="text" id="cfg-proveedor" placeholder="Opcional">
+          <select id="cfg-proveedor">
+            <option value="">Seleccionar proveedor</option>
+            <option value="Alimentos 4M">Alimentos 4M</option>
+            <option value="Andina">Andina</option>
+            <option value="Carlos Clean">Carlos Clean</option>
+            <option value="Carsnack">Carsnack</option>
+            <option value="Distribuidora Nico">Distribuidora Nico</option>
+            <option value="Inv. Internacionales">Inv. Internacionales</option>
+            <option value="Martini">Martini</option>
+            <option value="Pop Corn Project">Pop Corn Project</option>
+            <option value="Southerm">Southerm</option>
+            <option value="Varios">Varios</option>
+            <option value="Watts">Watts</option>
+            <option value="Otro">Otro</option>
+          </select>
         </div>
         <div class="field">
-          <label>Costo unitario ($)</label>
+          <label>Costo unitario bruto s/IVA ($) <span style="font-size:11px;color:var(--text-muted);font-weight:400;">· Para integración ERP futura</span></label>
           <input type="number" id="cfg-costo" placeholder="0" min="0" step="any">
         </div>
       </div>
@@ -1329,7 +1443,7 @@ const PERFILES = {
     nombre: 'Vendedor PO',
     icon: '🏪',
     local: 'Plaza Oeste',
-    tabs: ['ingresos','salidas','inventario','inventario-local','stock'],
+    tabs: ['ingresos','salidas','inventario','stock'],
     defaultTab: 'salidas',
     localFijo: true,
   },
@@ -1337,7 +1451,7 @@ const PERFILES = {
     nombre: 'Vendedor PAJ',
     icon: '🏪',
     local: 'Pajaritos',
-    tabs: ['ingresos','salidas','inventario','inventario-local','stock'],
+    tabs: ['ingresos','salidas','inventario','stock'],
     defaultTab: 'salidas',
     localFijo: true,
   },
@@ -1345,7 +1459,7 @@ const PERFILES = {
     nombre: 'Jefe de local',
     icon: '👔',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','inventario','inventario-local','stock'],
+    tabs: ['dashboard','ingresos','salidas','inventario','stock'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1353,7 +1467,7 @@ const PERFILES = {
     nombre: 'Admin',
     icon: '⚙️',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','config'],
+    tabs: ['dashboard','ingresos','salidas','inventario','stock','cuadre','planificador','config'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1382,9 +1496,9 @@ function seleccionarPerfil(id) {
     document.getElementById('globalLocalBadge').textContent = perfil.local;
     document.getElementById('globalLocalBadge').style.cursor = 'default';
     // Fijar visualmente los selectores de local en formularios
-    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
+    ['ing-local','sal-local','inv-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
     // Pre-seleccionar local en filtros
-    ['filt-ing-local','filt-sal-local','filt-inv-local','filt-invl-local','filt-stock-local'].forEach(id => {
+    ['filt-ing-local','filt-sal-local','filt-inv-local','filt-stock-local'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = perfil.local;
     });
@@ -1392,19 +1506,12 @@ function seleccionarPerfil(id) {
     globalLocal = '';
     document.getElementById('globalLocalBadge').textContent = 'Todos los locales';
     document.getElementById('globalLocalBadge').style.cursor = 'pointer';
-    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
+    ['ing-local','sal-local','inv-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
   }
-
-  // Pre-llenar fecha de hoy en todos los formularios de conteo
-  const hoy = new Date().toISOString().split('T')[0];
-  ['ing-fecha','sal-fecha','inv-fecha','invl-fecha'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el && !el.value) el.value = hoy;
-  });
 
   // Poblar responsables según local del perfil
   const localResp = perfil.local || 'ambos';
-  ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
+  ['ing-responsable','sal-responsable','inv-responsable'].forEach(id => poblarResponsable(id, localResp));
 
   // Mostrar solo las tabs del perfil
   aplicarTabsPerfil(perfil);
@@ -1417,7 +1524,7 @@ function seleccionarPerfil(id) {
 }
 
 function aplicarTabsPerfil(perfil) {
-  const allTabs = ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','config'];
+  const allTabs = ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','planificador','config'];
   allTabs.forEach(tab => {
     const btn = document.querySelector(`.tab-btn[onclick*="switchTab('${tab}')"]`);
     if (btn) btn.style.display = perfil.tabs.includes(tab) ? '' : 'none';
@@ -1441,7 +1548,7 @@ const DB = {
   inventario: [],
   inventario_local: [],
   consumoEsperado: [],
-  stockOcultos: new Set()
+  stockOcultos: new Set() // Set de "insumoId|local" ocultos en stock en vivo
 };
 
 let globalLocal = ''; // '' = todos
@@ -1476,6 +1583,9 @@ function switchTab(id) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   event.currentTarget.classList.add('active');
+  // Expandir ancho para pestañas con tablas anchas
+  const mainEl = document.querySelector('.main');
+  if (mainEl) mainEl.style.maxWidth = ['stock','cuadre','config'].includes(id) ? '1400px' : '960px';
   if (id === 'dashboard') renderDashboard();
   if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); filtrarIngresos(); }
   if (id === 'salidas') { poblarSelectInsumos('sal-insumo'); filtrarSalidas(); }
@@ -1550,6 +1660,7 @@ function noData(cols) {
 // STOCK EN VIVO — CÁLCULO PRINCIPAL
 // ══════════════════════════════════════════════════
 function calcularStockLocal(insumoId, local) {
+  // Último inventario físico del LOCAL para este insumo
   const invs = (DB.inventario_local || [])
     .filter(r => r.insumoId === insumoId && r.local === local)
     .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1621,8 +1732,10 @@ function renderDashboard() {
   DB.insumos.forEach(ins => {
     const aplicaLocales = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
     aplicaLocales.filter(l => locales.includes(l)).forEach(l => {
+      // Saltar insumos ocultos
       const key = `${ins.id}|${l}`;
       if (DB.stockOcultos && DB.stockOcultos.has(key)) return;
+
       const res = calcularStockVivo(ins.id, l);
       const estado = estadoSemaforo(ins, res ? res.stockEstimado : null);
       const dias = diasCobertura(ins, res ? res.stockEstimado : null);
@@ -1630,9 +1743,11 @@ function renderDashboard() {
       else if (estado === 'amarillo') bajo++;
       else if (estado === 'rojo') quiebre++;
       else sinAncla++;
+
       if (estado === 'rojo') {
         alertas.push({ ins: ins.nombre, local: l, stock: res ? res.stockEstimado.toFixed(2) : 'S/D', unidad: ins.unidad });
       }
+
       filas.push({ ins, l, res, estado, dias });
     });
   });
@@ -1673,13 +1788,14 @@ function renderDashboard() {
     cats.forEach(cat => {
       html += cabeceraCategoria(cat, 5);
       grupos[cat].forEach(f => {
-        const stockStr = f.res !== null ? (Number.isInteger(f.res.stockEstimado) ? f.res.stockEstimado : Math.round(f.res.stockEstimado)) + ' ' + f.ins.unidad : '<span style="color:var(--text-dim)">Sin ancla</span>';
+        const stockStr = f.res !== null ? fmtNum(f.res.stockEstimado, f.ins.unidad) : '<span style="color:var(--text-dim)">Sin ancla</span>';
         let sem = '';
         if (f.estado === 'verde') sem = `<span class="semaforo verde"><span class="dot"></span>OK</span>`;
         else if (f.estado === 'amarillo') sem = `<span class="semaforo amarillo"><span class="dot"></span>Bajo</span>`;
         else if (f.estado === 'rojo') sem = `<span class="semaforo rojo"><span class="dot"></span>Crítico</span>`;
         else sem = `<span class="chip">Sin conteo</span>`;
-        html += `<tr>
+        const rowDisplay = _catColapsadas.has(f.ins.categoria || 'Otros') ? 'display:none;' : '';
+        html += `<tr style="${rowDisplay}" data-cat="${(f.ins.categoria || 'Otros').replace(/"/g,'&quot;')}">
           <td><b>${f.ins.nombre}</b></td>
           <td>${chipLocal(f.l)}</td>
           <td>${stockStr}</td>
@@ -1846,6 +1962,7 @@ function guardarSalida() {
     cantidad, responsable, motivo, obs
   });
   guardarDB('salidas');
+  // Sincronizar con Sheets
   const record = DB.salidas[DB.salidas.length - 1];
   gasPost({ accion: 'insertar', local, tabla: 'salidas', record });
   toast('✅ Salida registrada');
@@ -1901,124 +2018,6 @@ function filtrarSalidas() {
 // ══════════════════════════════════════════════════
 // INVENTARIO SEMANAL
 // ══════════════════════════════════════════════════
-// ══════════════════════════════════════════════
-// INVENTARIO MASIVO (Bodega y Local)
-// ══════════════════════════════════════════════
-
-function generarConteoInventario(prefix) {
-  const fecha = document.getElementById(`${prefix}-fecha`).value;
-  const local = document.getElementById(`${prefix}-local`).value;
-  const responsable = document.getElementById(`${prefix}-responsable`).value;
-
-  if (!fecha || !local || !responsable) {
-    toast('⚠️ Selecciona fecha, local y responsable primero', true); return;
-  }
-
-  const tbody = document.getElementById(`${prefix}-conteo-tbody`);
-  const insumos = [...DB.insumos]
-    .filter(ins => !DB.stockOcultos.has(`${ins.id}|${local}`))
-    .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
-
-  let catActual = '';
-  let html = '';
-  insumos.forEach(ins => {
-    if (ins.categoria !== catActual) {
-      catActual = ins.categoria;
-      html += `<tr class="cat-header"><td colspan="5">${ICONOS_CAT[catActual] || '📦'} ${catActual}</td></tr>`;
-    }
-    html += `<tr>
-      <td style="color:var(--text-muted);font-size:12px;">${ins.categoria}</td>
-      <td><b>${ins.nombre}</b></td>
-      <td style="color:var(--text-muted);">${ins.unidad}</td>
-      <td><input type="number" class="conteo-input" data-id="${ins.id}" data-unidad="${ins.unidad}"
-        placeholder="—" min="0" step="any"
-        style="width:90px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;"></td>
-      <td><input type="text" class="conteo-obs" data-id="${ins.id}" placeholder="obs."
-        style="width:120px;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;"></td>
-    </tr>`;
-  });
-
-  tbody.innerHTML = html;
-  document.getElementById(`${prefix}-conteo-wrap`).style.display = 'block';
-  // Focus en primer input
-  setTimeout(() => tbody.querySelector('.conteo-input')?.focus(), 100);
-}
-
-function guardarConteoMasivo(prefix, tabla) {
-  const fecha = document.getElementById(`${prefix}-fecha`).value;
-  const local = document.getElementById(`${prefix}-local`).value;
-  const responsable = document.getElementById(`${prefix}-responsable`).value;
-
-  if (!fecha || !local || !responsable) {
-    toast('⚠️ Completa fecha, local y responsable', true); return;
-  }
-
-  const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
-  const records = [];
-  inputs.forEach(inp => {
-    const val = parseFloat(inp.value);
-    if (!isNaN(val) && val >= 0) {
-      const obsEl = inp.closest('tr').querySelector('.conteo-obs');
-      records.push({
-        id: uid(), fecha, local,
-        insumoId: inp.dataset.id,
-        unidad: inp.dataset.unidad,
-        stock: val,
-        responsable,
-        obs: obsEl ? obsEl.value.trim() : ''
-      });
-    }
-  });
-
-  if (records.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
-
-  DB[tabla] = DB[tabla] || [];
-  DB[tabla].push(...records);
-  guardarDB(tabla);
-  sbUpsertMany(tabla, records);
-  document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
-  if (tabla === 'inventario') filtrarInventario();
-  else filtrarInventarioLocal();
-  toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
-}
-
-// ══════════════════════════════════════════════
-// INVENTARIO LOCAL
-// ══════════════════════════════════════════════
-
-function filtrarInventarioLocal() {
-  const local = document.getElementById('filt-invl-local')?.value;
-  const mes = document.getElementById('filt-invl-mes')?.value;
-  let data = [...(DB.inventario_local || [])].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
-  if (local) data = data.filter(r => r.local === local);
-  if (mes) data = data.filter(r => r.fecha && r.fecha.startsWith(mes));
-  const tbody = document.getElementById('tabla-inventario-local');
-  if (!tbody) return;
-  if (data.length === 0) { tbody.innerHTML = noData(8); return; }
-
-  const enrich = data.map(r => ({ ...r, _cat: (getInsumo(r.insumoId)?.categoria) || 'Otros' }));
-  const { grupos, cats } = agruparPorCategoria(enrich, f => f._cat);
-
-  let html = '';
-  cats.forEach(cat => {
-    html += `<tr class="cat-header"><td colspan="8">${ICONOS_CAT[cat] || '📦'} ${cat}</td></tr>`;
-    grupos[cat].forEach(r => {
-      const ins = getInsumo(r.insumoId);
-      html += `<tr>
-        <td>${r.fecha}</td>
-        <td>${r.local}</td>
-        <td>${ins ? ins.nombre : r.insumoId}</td>
-        <td><b>${r.stock}</b></td>
-        <td>${r.unidad}</td>
-        <td>${r.responsable}</td>
-        <td>${r.obs || ''}</td>
-        <td><button class="btn btn-ghost btn-sm" onclick="eliminarRegistro('inventario_local','${r.id}',filtrarInventarioLocal)">🗑</button></td>
-      </tr>`;
-    });
-  });
-  tbody.innerHTML = html;
-}
-
 function guardarInventario() {
   const fecha = document.getElementById('inv-fecha').value;
   const local = document.getElementById('inv-local').value;
@@ -2080,6 +2079,39 @@ function filtrarInventario() {
   tbody.innerHTML = html;
 }
 
+function filtrarInventarioLocal() {
+  const local = document.getElementById('filt-invl-local')?.value;
+  const mes = document.getElementById('filt-invl-mes')?.value;
+  let data = [...(DB.inventario_local || [])].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+  if (local) data = data.filter(r => r.local === local);
+  if (mes) data = data.filter(r => r.fecha && r.fecha.startsWith(mes));
+  const tbody = document.getElementById('tabla-inventario-local');
+  if (!tbody) return;
+  if (data.length === 0) { tbody.innerHTML = noData(8); return; }
+
+  const enrich = data.map(r => ({ ...r, _cat: (getInsumo(r.insumoId)?.categoria) || 'Otros' }));
+  const { grupos, cats } = agruparPorCategoria(enrich, f => f._cat);
+
+  let html = '';
+  cats.forEach(cat => {
+    html += cabeceraCategoria(cat, 8);
+    grupos[cat].forEach(r => {
+      const ins = getInsumo(r.insumoId);
+      html += `<tr>
+        <td>${r.fecha}</td>
+        <td>${chipLocal(r.local)}</td>
+        <td>${ins ? ins.nombre : '?'}</td>
+        <td><b>${r.stock}</b></td>
+        <td>${r.unidad||''}</td>
+        <td>${r.responsable}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;">${r.obs||''}</td>
+        <td><button class="btn-icon" title="Eliminar" onclick="eliminar('inventario_local','${r.id}',filtrarInventarioLocal)">🗑</button></td>
+      </tr>`;
+    });
+  });
+  tbody.innerHTML = html;
+}
+
 // Conteo masivo
 function abrirModalBulk() {
   const modal = document.getElementById('modal-bulk');
@@ -2131,6 +2163,34 @@ function guardarBulk() {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO
 // ══════════════════════════════════════════════════
+async function guardarOcultos() {
+  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
+  try {
+    // Obtener ocultos actuales en Supabase
+    const existentes = await sbSelect('stock_ocultos');
+    const idsExistentes = Array.isArray(existentes) ? existentes.map(r => r.id) : [];
+    const idsActuales = [...DB.stockOcultos];
+    
+    // Borrar los que ya no están ocultos
+    const aBorrar = idsExistentes.filter(id => !idsActuales.includes(id));
+    for (const id of aBorrar) {
+      await sbDelete('stock_ocultos', encodeURIComponent(id));
+    }
+    
+    // Insertar los nuevos
+    if (idsActuales.length > 0) {
+      const records = idsActuales.map(key => {
+        const parts = key.split('|');
+        return { id: key, insumo_id: parts[0], local: parts[1] || '' };
+      });
+      await sbUpsertMany('stock_ocultos', records);
+    }
+    console.log('✅ Ocultos en Supabase:', idsActuales.length);
+  } catch(e) {
+    console.warn('Error guardando ocultos:', e.message);
+  }
+}
+
 async function cargarOcultos() {
   try {
     const records = await sbSelect('stock_ocultos');
@@ -2139,13 +2199,10 @@ async function cargarOcultos() {
       localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
     }
   } catch(e) {
+    // Fallback a localStorage
     const ocultos = localStorage.getItem('docpopcorn_stockOcultos');
     DB.stockOcultos = new Set(ocultos ? JSON.parse(ocultos) : []);
   }
-}
-
-function guardarOcultos() {
-  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
 }
 
 function toggleOcultoStock(insumoId, local) {
@@ -2155,18 +2212,6 @@ function toggleOcultoStock(insumoId, local) {
   guardarOcultos();
   renderStock();
   renderDashboard();
-}
-
-function guardarOcultos_unused() {
-  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
-}
-
-function toggleOcultoStock(insumoId, local) {
-  const key = `${insumoId}|${local}`;
-  if (DB.stockOcultos.has(key)) DB.stockOcultos.delete(key);
-  else DB.stockOcultos.add(key);
-  guardarOcultos();
-  renderStock();
 }
 
 function renderStock() {
@@ -2192,7 +2237,7 @@ function renderStock() {
   });
 
   const tbody = document.getElementById('tabla-stock');
-  if (filas.length === 0) { tbody.innerHTML = noData(8); return; }
+  if (filas.length === 0) { tbody.innerHTML = noData(10); return; }
 
   const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3 };
   filas.sort((a, b) => {
@@ -2214,10 +2259,12 @@ function renderStock() {
     // Verificar si hay filas visibles en esta categoría
     const filasVisibles = grupos[cat].filter(f => !f.esOculto || mostrarOcultos);
     if (filasVisibles.length === 0) return;
-    html += cabeceraCategoria(cat, 8);
+    html += cabeceraCategoria(cat, 10);
     filasVisibles.forEach(f => {
+      const stockBodega = f.res !== null ? fmtNum(f.res.anclaStock + f.res.ingresos - f.res.salidas, f.ins.unidad) : '—';
+      const stockLocalVal = calcularStockLocal(f.ins.id, f.l);
       const stockStr = f.stockEst !== null
-        ? `<b>${Number.isInteger(f.stockEst) ? f.stockEst : Number(f.stockEst) % 1 === 0 ? Math.round(f.stockEst) : f.stockEst.toFixed(1)}</b> ${f.ins.unidad}`
+        ? `<b>${fmtNum(f.stockEst, f.ins.unidad)}</b>`
         : '<span style="color:var(--text-dim)">Sin ancla</span>';
       const pct = f.stockEst !== null && f.ins.minimo > 0
         ? Math.min(100, Math.round((f.stockEst / f.ins.minimo) * 100)) : 0;
@@ -2229,17 +2276,20 @@ function renderStock() {
       else sem = `<span class="chip">Sin conteo</span>`;
 
       const rowStyle = f.esOculto ? 'opacity:0.4;' : '';
-      const btnOcultar = '';
+      const rowDisplay = _catColapsadas.has(f.ins.categoria || 'Otros') ? 'display:none;' : '';
+      const btnOcultar = `<button class="btn-icon" title="${f.esOculto ? 'Mostrar' : 'Ocultar'}"
+        onclick="toggleOcultoStock('${f.ins.id}','${f.l}')"
+        style="font-size:14px;">${f.esOculto ? '👁' : '🙈'}</button>`;
 
-      html += `<tr style="${rowStyle}">
+      html += `<tr style="${rowStyle}${rowDisplay}" data-cat="${(f.ins.categoria || 'Otros').replace(/"/g,'&quot;')}">
         <td><b>${f.ins.nombre}</b></td>
         <td>${chipLocal(f.l)}</td>
-        <td>${stockStr}</td>
+        <td style="text-align:center;font-size:12px;color:${f.res ? 'var(--text-muted)' : 'var(--text-dim)'};">${f.res ? f.res.anclaFecha : '—'}</td>
+        <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockBodega : '<span style="color:var(--text-dim)">—</span>'}</td>
+        <td style="text-align:right;color:var(--text-muted);">${stockLocalVal > 0 ? fmtNum(stockLocalVal, f.ins.unidad) : '—'}</td>
+        <td style="text-align:right;">${stockStr}</td>
         <td>${f.ins.minimo} ${f.ins.unidad}</td>
         <td>${f.dias} d.</td>
-        <td style="min-width:100px;">
-          <div class="progress-wrap"><div class="progress-bar ${barClass}" style="width:${pct}%"></div></div>
-        </td>
         <td>${sem}</td>
         <td>${btnOcultar}</td>
       </tr>`;
@@ -2257,20 +2307,36 @@ const FORMATO_LB = {
   'Pequeño': 2, 'Mediano': 3.5, 'Balde 3L': 3, 'Balde 5L': 5,
   'Big Pop': 4.5, 'Big Tin 13.5L': 13.5, 'Party Bag': 10,
   'Bolsa chica': 2, 'Refill Balde 3 Litros': 3, 'Refill Balde 5 Litros': 5,
-  'Tarro 13.5L': 13.5,
+  'Tarro 13.5L': 13.5, 'Refill Big Tin': 13.5,
 };
 
 // Insumo → oz/ml/unidades por BATCH completo (15.5 lb)
+// Recetas por sabor (cantidades por batch en unidad receta)
+// Nombres de insumos = nombres en tabla Conversiones Airtable
 const RECETAS = {
-  'Klassic Kettle':  {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15},
-  'Sweet Butter':    {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Natural Doc Popcorn Butter Red V2': 15, 'Klassic Kettle': 15},
-  'Better Butter':   {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Natural Doc Popcorn Butter Red V2': 20, 'Sal en Polvo': 15},
-  'Chocolate':       {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15, 'Chocolate Trencito': 350},
-  'Cookies N Cream': {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Klassic Kettle': 15, 'Galletas Oreo': 3, 'Chocolate Blanco': 1000},
-  'Apple Crisp':     {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Apple Crisp': 12},
-  'Cheesy Cheddar':  {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Natural Doc Popcorn Butter Red V2': 20, 'Sal en Polvo': 15, 'Cheesy Cheddar': 16},
-  'Hoppin Jalapeño': {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Hopping Jalapeño': 12, 'Sal en Polvo': 15},
-  'Caramel Bliss':   {'Maíz Butterfly': 32, 'Aceite de Maíz': 14, 'Azúcar (Mangas) x 10 azucar': 24, 'Mantequilla Calo': 1, 'Caramelo en polvo Caramel Corn 40lib': 1, 'Separador Free n Easy': 1},
+  'Klassic Kettle':  {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15},
+  'Sweet Butter':    {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Natural Doc Popcorn Butter Red': 15, 'Klassic Kettle': 15},
+  'Better Butter':   {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Natural Doc Popcorn Butter Red': 20, 'Sal en Polvo': 15},
+  'Chocolate':       {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15, 'Chocolate Trencito': 350},
+  'Cookies N Cream': {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Klassic Kettle': 15, 'Galleta Oreo 108gr': 3, 'Chocolate Blanco': 1},
+  'Apple Crisp':     {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Azúcar': 24, 'Apple Crisp': 12},
+  'Cheesy Cheddar':  {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Natural Doc Popcorn Butter Red': 20, 'Sal en Polvo': 15, 'Cheesy Cheddar': 16},
+  'Hoppin Jalapeño': {'Maíz Butterfly': 32, 'Aceite Chef Maíz': 14, 'Hopping Jalapeño': 12, 'Sal en Polvo': 15},
+  'Caramel Bliss':   {'Maíz Premium': 32, 'Aceite Chef Maíz': 14, 'Caramel Mix': 32, 'Mantequilla Calo': 250, 'Free & Easy': 25},
+};
+
+// Envases por formato de venta (solo papel como base)
+// 1 unidad de venta = N unidades de envase consumidas
+const ENVASES_FORMATO = {
+  'Pequeño':          {'Bolsa chica': 1},
+  'Mediano':          {'Bolsas medianas papel': 1},
+  'Big Pop':          {'Bolsas grandes papel': 1},
+  'Balde 3L':         {'Balde 3L': 1, 'Tapa 3L': 1},
+  'Balde 5L':         {'Balde 5L': 1, 'Tapa 5L': 1},
+  'Big Tin 13.5L':    {'Tarros 13,5L': 1, 'Tapa 13.5L': 1},
+  'Party Bag':        {'Bolsa Party Bag': 1, 'Etiquetas Party Bag': 1},
+  'Balde 3 Litros':   {'Balde 3L': 1, 'Tapa 3L': 1},
+  'Balde 5 Litros':   {'Balde 5L': 1, 'Tapa 5L': 1},
 };
 
 // Mapeo sabor Airtable → clave receta
@@ -2288,33 +2354,246 @@ const FORMATO_MAP = {
   'Balde 3 Litros': 'Balde 3L', 'Balde 3L': 'Balde 3L',
   'Balde 5 Litros': 'Balde 5L', 'Balde 5L': 'Balde 5L',
   'Big Pop': 'Big Pop', 'Big Tin 13.5L': 'Big Tin 13.5L',
+  'Big Tin': 'Big Tin 13.5L',
   'Party Bag': 'Party Bag', 'Bolsa chica': 'Bolsa chica',
   'Refill Balde 3 Litros': 'Refill Balde 3 Litros',
   'Refill Balde 5 Litros': 'Refill Balde 5 Litros',
+  'Refill Big Tin': 'Refill Big Tin',
   'Tarro 13.5L': 'Tarro 13.5L',
 };
 
-// Mapeo nombre insumo sistema → nombre en RECETAS
-const INSUMO_RECETA_MAP = {
-  'Maíz Butterfly': ['Maíz Butterfly', 'Maiz Butterfly sacos 25kg (Celeste)', 'Maíz Butterfly sacos 25kg (Celeste)'],
-  'Aceite de Maíz': ['Aceite de Maíz'],
-  'Azúcar (Mangas) x 10 azucar': ['Azúcar (Mangas) x 10 azucar'],
-  'Klassic Kettle': ['Klassic Kettle'],
-  'Natural Doc Popcorn Butter Red V2': ['Natural Doc Popcorn Butter Red V2'],
-  'Sal en Polvo': ['Sal en Polvo'],
-  'Chocolate Trencito': ['Chocolate Trencito'],
-  'Galletas Oreo': ['Galletas Oreo'],
-  'Chocolate Blanco': ['Chocolate Blanco'],
-  'Apple Crisp': ['Apple Crisp'],
-  'Cheesy Cheddar': ['Cheesy Cheddar'],
-  'Hopping Jalapeño': ['Hopping Jalapeño'],
-  'Mantequilla Calo': ['Mantequilla Calo'],
-  'Caramelo en polvo Caramel Corn 40lib': ['Caramelo en polvo Caramel Corn 40lib'],
-  'Separador Free n Easy': ['Separador Free n Easy'],
-};
+// Mapeo nombre insumo sistema → nombre en RECETAS (ya sincronizados, mapa identidad)
+const INSUMO_RECETA_MAP = {};
+
+// ══════════════════════════════════════════════════
+// PLANIFICADOR DE COMPRAS
+// ══════════════════════════════════════════════════
+
+async function calcularPlanificador() {
+  const meta   = parseFloat(document.getElementById('plan-meta').value);
+  const estado = document.getElementById('plan-estado');
+  const kpis   = document.getElementById('plan-kpis');
+
+  if (!meta || meta <= 0) { toast('⚠️ Ingresa una meta de ventas válida', true); return; }
+
+  estado.textContent = '⏳ Leyendo ventas desde Airtable...';
+  kpis.style.display = 'none';
+
+  try {
+    const token = localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '';
+
+    // 1. Elegir mes de referencia: último mes completo
+    const hoy   = new Date();
+    const refMes = hoy.getDate() < 25
+      ? `${hoy.getFullYear()}-${String(hoy.getMonth()).padStart(2,'0')}` // mes anterior
+      : `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`; // mes actual
+    // Mes anterior siempre más confiable
+    const d = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+    const mesRef = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+    const localPlan = document.getElementById('plan-local')?.value || '';
+
+    // 2. Leer ventas del mes de referencia
+    estado.textContent = `⏳ Leyendo ventas de ${mesRef}...`;
+    let allVentas = [], offset = null;
+    do {
+      const filtro = `AND({Tipo}="productos",{periodo_texto}="${mesRef}",{Sabor}!="")`;
+      let url = `https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tblAAx1iIr1uwEkNe?pageSize=100&filterByFormula=${encodeURIComponent(filtro)}`;
+      if (offset) url += '&offset=' + offset;
+      const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      const d2 = await r.json();
+      allVentas = [...allVentas, ...(d2.records || [])];
+      offset = d2.offset;
+      estado.textContent = `⏳ Leyendo ventas... (${allVentas.length} registros)`;
+    } while (offset);
+
+    // IDs de locales en Airtable
+    const LOCAL_IDS = {
+      'Plaza Oeste': 'recSZCUVytXmhfnn1',
+      'Pajaritos':   'recJLgzYXhumNLitT',
+    };
+
+    // Filtrar por local en JS usando ID
+    if (localPlan && LOCAL_IDS[localPlan]) {
+      const localId = LOCAL_IDS[localPlan];
+      allVentas = allVentas.filter(r => {
+        const local = r.fields['Local'];
+        return Array.isArray(local) ? local.includes(localId) : local === localId;
+      });
+    }
+
+    if (allVentas.length === 0) {
+      estado.textContent = `⚠️ Sin ventas en ${mesRef}. Cambia el mes de referencia.`;
+      return;
+    }
+
+    // 3. Leer precios
+    estado.textContent = '⏳ Leyendo precios...';
+    let allPrecios = [], offsetP = null;
+    do {
+      let url = `https://api.airtable.com/v0/appsiyj4aTKQ5kKtM/tbl8QTa2CPRhPziwa?pageSize=100`;
+      if (offsetP) url += '&offset=' + offsetP;
+      const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      const d3 = await r.json();
+      allPrecios = [...allPrecios, ...(d3.records || [])];
+      offsetP = d3.offset;
+    } while (offsetP);
+
+    // precio por sabor+formato
+    const precioMap = {};
+    allPrecios.forEach(r => {
+      const f       = r.fields || {};
+      const sabor   = f['Categoría'] || '';
+      const formato = f['Tamaño'] || '';
+      const precio  = Number(f['Precio Venta CLP'] || 0);
+      if (sabor && formato && precio) precioMap[`${sabor}||${formato}`] = precio;
+    });
+
+    // 4. Calcular venta total y mix por sabor
+    let ventaTotal = 0;
+    const ventaPorSabor  = {};
+    const batchesPorSabor = {};
+    const librasPorSabor  = {};
+
+    // Mapa sabor (ventas) → categoría (precios)
+    const SABOR_CATEGORIA = {
+      'Klassic Kettle': 'Clásicos', 'Sweet Butter': 'Clásicos',
+      'Better Butter': 'Clásicos', 'Caramel Bliss': 'Caramel Bliss',
+      'Cookies N Cream': 'Especiales', 'Chocolate': 'Especiales',
+      'Apple Crisp': 'Especiales', 'Cheesy Cheddar': 'Especiales',
+      'Hoppin Jalapeño': 'Especiales', 'Hopping Jalapeño': 'Especiales',
+    };
+
+    allVentas.forEach(r => {
+      const f        = r.fields || {};
+      const sabor    = f['Sabor'] || '';
+      const formato  = f['Formato'] || '';
+      const unidades = Number(f['Unidades'] || 0);
+      if (!sabor || !formato || !unidades) return;
+
+      const fmtKey   = FORMATO_MAP[formato] || formato;
+      const lb       = FORMATO_LB[fmtKey] || 0;
+      const batches  = lb > 0 ? (unidades * lb) / BATCH_LB : 0;
+      const categoria = SABOR_CATEGORIA[sabor] || sabor;
+      const precio   = precioMap[`${categoria}||${formato}`] || precioMap[`${sabor}||${formato}`] || 0;
+      const venta    = unidades * precio;
+
+      ventaTotal += venta;
+      ventaPorSabor[sabor]   = (ventaPorSabor[sabor]   || 0) + venta;
+      batchesPorSabor[sabor] = (batchesPorSabor[sabor] || 0) + batches;
+      librasPorSabor[sabor]  = (librasPorSabor[sabor]  || 0) + unidades * lb;
+    });
+
+    if (ventaTotal === 0) {
+      estado.textContent = '⚠️ No se pudieron calcular ventas. Verifica que los precios en Airtable tengan el nombre de sabor correcto.';
+      return;
+    }
+
+    // 5. Factor de escala
+    const factor = meta / ventaTotal;
+
+    // 6. Proyectar batches e insumos
+    const batchesProyectados = {};
+    Object.keys(batchesPorSabor).forEach(s => { batchesProyectados[s] = batchesPorSabor[s] * factor; });
+
+    const totalBatchesProyectados = Object.values(batchesProyectados).reduce((a,b) => a+b, 0);
+    const totalLibrasProyectadas  = Object.values(librasPorSabor).reduce((a,b) => a+b, 0) * factor;
+
+    const conversiones = await leerConversiones();
+    const consumoProyectado = {};
+    const unidadBodegaMap   = {};
+
+    Object.entries(batchesProyectados).forEach(([sabor, batches]) => {
+      const receta = RECETAS[SABOR_MAP[sabor] || sabor] || {};
+      Object.entries(receta).forEach(([insumo, cantPorBatch]) => {
+        const total = cantPorBatch * batches;
+        const conv  = conversiones[insumo];
+        const totalBodega = conv ? total / conv.factor : total;
+        consumoProyectado[insumo] = (consumoProyectado[insumo] || 0) + totalBodega;
+        if (conv) unidadBodegaMap[insumo] = conv.unidadBodega;
+      });
+    });
+
+    // 7. Renderizar KPIs
+    document.getElementById('plan-kpi-meta').textContent    = '$' + Math.round(meta).toLocaleString('es-CL');
+    document.getElementById('plan-kpi-batches').textContent = Math.round(totalBatchesProyectados).toLocaleString('es-CL');
+    document.getElementById('plan-kpi-libras').textContent  = Math.round(totalLibrasProyectadas).toLocaleString('es-CL') + ' lb';
+    document.getElementById('plan-kpi-ref').textContent     = mesRef;
+
+    // 8. Mix proyectado
+    const mixRows = Object.keys(batchesProyectados)
+      .sort((a,b) => batchesProyectados[b] - batchesProyectados[a])
+      .map(sabor => {
+        const pct     = ventaTotal > 0 ? (ventaPorSabor[sabor] / ventaTotal * 100).toFixed(1) : 0;
+        const batches = batchesProyectados[sabor];
+        const libras  = librasPorSabor[sabor] * factor;
+        const ventaEst = ventaPorSabor[sabor] * factor;
+        return `<tr>
+          <td><b>${sabor}</b></td>
+          <td style="text-align:right;">${pct}%</td>
+          <td style="text-align:right;">${Math.round(batches).toLocaleString('es-CL')}</td>
+          <td style="text-align:right;">${Math.round(libras).toLocaleString('es-CL')} lb</td>
+          <td style="text-align:right;">$${Math.round(ventaEst).toLocaleString('es-CL')}</td>
+        </tr>`;
+      }).join('');
+    document.getElementById('plan-mix-tbody').innerHTML = mixRows || '<tr><td colspan="5">Sin datos</td></tr>';
+
+    // 9. Lista de compras
+    const comprasRows = Object.entries(consumoProyectado)
+      .filter(([,v]) => v > 0.01)
+      .sort((a,b) => b[1] - a[1])
+      .map(([insumo, cant]) => {
+        const unidad = unidadBodegaMap[insumo] || '';
+        return `<tr>
+          <td><b>${insumo}</b></td>
+          <td style="text-align:right;">${unidad}</td>
+          <td style="text-align:right;font-weight:700;color:var(--yellow);">${Math.ceil(cant).toLocaleString('es-CL')}</td>
+        </tr>`;
+      }).join('');
+    document.getElementById('plan-compras-tbody').innerHTML = comprasRows || '<tr><td colspan="3">Sin datos</td></tr>';
+
+    kpis.style.display = 'block';
+    estado.textContent = `✅ Basado en ${allVentas.length} líneas de venta de ${mesRef}${localPlan ? ' · ' + localPlan : ' · Ambos locales'} · Venta real del mes: $${Math.round(ventaTotal).toLocaleString('es-CL')}`;
+
+  } catch(e) {
+    estado.textContent = '❌ Error: ' + e.message;
+  }
+}
 
 // Estado cuadre
 let cuadreData = null;
+
+// Cache de conversiones desde Airtable
+let _conversiones = null;
+
+async function leerConversiones() {
+  if (_conversiones) return _conversiones; // cache
+
+  const BASE  = 'appsiyj4aTKQ5kKtM';
+  const TABLE = 'tblhd7caiVlwxWdQd';
+  const token = localStorage.getItem('airtableToken') || localStorage.getItem('docpopcorn_airtable_token') || '';
+  if (!token) return {};
+
+  const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?pageSize=100`, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  const data = await resp.json();
+  if (!data.records) return {};
+
+  // Construir mapa: nombreInsumo → { unidadBodega, factor, unidadReceta }
+  const mapa = {};
+  data.records.forEach(r => {
+    const f = r.fields || {};
+    const nombre = f['Insumo'] || '';
+    const unidadBodega = f['Unidad bodega'] || '';
+    const factor = Number(f['Factor'] || 1);
+    const unidadReceta = f['Unidad receta'] || '';
+    if (nombre) mapa[nombre] = { unidadBodega, factor, unidadReceta };
+  });
+
+  _conversiones = mapa;
+  return mapa;
+}
 
 async function calcularCuadre() {
   const mes = document.getElementById('filt-cuadre-mes').value;
@@ -2331,8 +2610,11 @@ async function calcularCuadre() {
     const ventas = await leerVentasAirtable(mes, local);
     estado.textContent = `✅ ${ventas.length} líneas de venta leídas. Calculando...`;
 
-    // Calcular consumo teórico
-    const consumoTeorico = calcularConsumoTeorico(ventas);
+    // Leer conversiones desde Airtable y calcular consumo teórico
+    estado.textContent = '⏳ Leyendo conversiones de insumos...';
+    _conversiones = null; // reset cache para forzar lectura fresca
+    const conversiones = await leerConversiones();
+    const consumoTeorico = calcularConsumoTeorico(ventas, conversiones);
 
     // Calcular stock inicial (último inventario físico ANTES del mes)
     const stockInicial = calcularStockInicial(mes, local);
@@ -2354,7 +2636,7 @@ async function calcularCuadre() {
   }
 }
 
-async function leerVentasAirtable(mes, local) {
+async function leerVentasAirtable(mes, localFiltro) {
   const BASE = 'appsiyj4aTKQ5kKtM';
   const TABLE = 'tblAAx1iIr1uwEkNe';
   // mes = "2025-06" → fecha inicio "2025-06-01"
@@ -2364,12 +2646,12 @@ async function leerVentasAirtable(mes, local) {
   const fechaFin = mes + '-' + String(ultimoDia).padStart(2,'0');
 
   // Campos: sabor, formato, unidades, fecha, tipo, local
-  const FIELD_SABOR    = 'fldKlEBzCotMIYiaV';
-  const FIELD_FORMATO  = 'fldLSP5iERGwVfExr';
-  const FIELD_UNIDADES = 'fldCHvpimOmPxNONk';
-  const FIELD_FECHA    = 'fldGpKkti1teLuRRg';
-  const FIELD_TIPO     = 'fldnHOi6YLus3ij1J';
-  const FIELD_LOCAL    = 'fldjKhsdUBU0RRU96';
+  const FIELD_SABOR    = 'Sabor';
+  const FIELD_FORMATO  = 'Formato';
+  const FIELD_UNIDADES = 'Unidades';
+  const FIELD_FECHA    = 'periodo_texto';
+  const FIELD_TIPO     = 'Tipo';
+  const FIELD_LOCAL    = 'Local';
 
   let allRecords = [];
   let cursor = null;
@@ -2380,7 +2662,7 @@ async function leerVentasAirtable(mes, local) {
       max_tokens: 1000,
       messages: [{
         role: 'user',
-        content: `Fetch Airtable records from base ${BASE} table ${TABLE}. Filter: tipo=productos, fecha between ${fechaInicio} and ${fechaFin}${local ? ', local contains ' + local : ''}. Return JSON array with fields: sabor, formato, unidades, fecha, local. Cursor: ${cursor || 'start'}`
+        content: `Fetch Airtable records from base ${BASE} table ${TABLE}. Filter: tipo=productos, fecha between ${fechaInicio} and ${fechaFin}${localFiltro ? ', local contains ' + localFiltro : ''}. Return JSON array with fields: sabor, formato, unidades, fecha, local. Cursor: ${cursor || 'start'}`
       }],
       mcp_servers: [{
         type: 'url',
@@ -2390,15 +2672,16 @@ async function leerVentasAirtable(mes, local) {
     };
 
     // Direct Airtable API call via pagination
+    const fields = ['Sabor', 'Formato', 'Unidades', 'periodo_texto', 'Tipo', 'Local', 'Producto'];
     const params = new URLSearchParams({
-      'fields[]': [FIELD_SABOR, FIELD_FORMATO, FIELD_UNIDADES, FIELD_FECHA, FIELD_TIPO, FIELD_LOCAL],
-      'filterByFormula': `AND({fldnHOi6YLus3ij1J}="productos",IS_AFTER({fldGpKkti1teLuRRg},"${fechaInicio}"),IS_BEFORE({fldGpKkti1teLuRRg},"${mes}-32"))`,
+      'filterByFormula': `AND({Tipo}="productos",{periodo_texto}="${mes}",{Unidades}>0)`,
       'pageSize': 100
     });
-    if (cursor) params.set('offset', cursor);
+    fields.forEach(f => params.append('fields[]', f));
+    if (cursor) params.append('offset', cursor);
 
     const resp = await fetch(`https://api.airtable.com/v0/${BASE}/${TABLE}?${params}`, {
-      headers: { 'Authorization': 'Bearer ' + (window._airtableToken || '') }
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('docpopcorn_airtable_token') || localStorage.getItem('airtableToken') || '') }
     });
     const data = await resp.json();
 
@@ -2410,34 +2693,58 @@ async function leerVentasAirtable(mes, local) {
   } while (cursor);
 
   // Mapear a estructura simple
-  return allRecords
+  const LOCAL_IDS = {
+    'Plaza Oeste': 'recSZCUVytXmhfnn1',
+    'Pajaritos':   'recJLgzYXhumNLitT',
+  };
+
+  let resultado = allRecords
     .map(r => {
       const f = r.fields || {};
-      const sabor = f[FIELD_SABOR]?.name || '';
-      const formato = f[FIELD_FORMATO]?.name || '';
-      const unidades = Number(f[FIELD_UNIDADES] || 0);
-      const locales = (f[FIELD_LOCAL] || []).map(l => l.name || '').join(', ');
-      return { sabor, formato, unidades, local: locales };
+      const sabor    = f['Sabor'] || '';
+      const formato  = f['Formato'] || f['Producto'] || '';
+      const unidades = Number(f['Unidades'] || 0);
+      const localId  = Array.isArray(f['Local']) ? f['Local'][0] || '' : (f['Local'] || '');
+      const esBebida = (f['Sabor'] || '').toLowerCase().includes('bebida');
+      return { sabor, formato, unidades, localId, esBebida };
     })
     .filter(r => r.unidades > 0 && r.sabor && r.formato);
+
+  // Filtrar por local si se especificó
+  if (localFiltro && LOCAL_IDS[localFiltro]) {
+    resultado = resultado.filter(r => r.localId === LOCAL_IDS[localFiltro]);
+  }
+
+  return resultado;
 }
 
-function calcularConsumoTeorico(ventas) {
-  // ventas: [{sabor, formato, unidades}]
-  // returns: {nombreInsumo: cantidadTotal}
+function calcularConsumoTeorico(ventas, conversiones) {
   const consumo = {};
 
   ventas.forEach(v => {
-    const sabor = SABOR_MAP[v.sabor] || v.sabor;
+    const sabor  = SABOR_MAP[v.sabor] || v.sabor;
     const fmtKey = FORMATO_MAP[v.formato] || v.formato;
-    const lb = FORMATO_LB[fmtKey] || 0;
+    const lb     = FORMATO_LB[fmtKey] || 0;
     if (!lb || !RECETAS[sabor]) return;
 
     const batches = (v.unidades * lb) / BATCH_LB;
-    const receta = RECETAS[sabor];
+    const receta  = RECETAS[sabor];
 
+    // Ingredientes de producción
     Object.entries(receta).forEach(([ins, cantPorBatch]) => {
-      consumo[ins] = (consumo[ins] || 0) + cantPorBatch * batches;
+      const totalUnidadReceta = cantPorBatch * batches;
+      const conv = conversiones && conversiones[ins];
+      const totalBodega = conv ? totalUnidadReceta / conv.factor : totalUnidadReceta;
+      consumo[ins] = (consumo[ins] || 0) + totalBodega;
+    });
+
+    // Envases por unidad vendida
+    const envases = ENVASES_FORMATO[fmtKey] || ENVASES_FORMATO[v.formato] || {};
+    Object.entries(envases).forEach(([envase, cantPorUnidad]) => {
+      const totalEnvase = cantPorUnidad * v.unidades;
+      const conv = conversiones && conversiones[envase];
+      const totalBodega = conv ? totalEnvase / conv.factor : totalEnvase;
+      consumo[envase] = (consumo[envase] || 0) + totalBodega;
     });
   });
 
@@ -2516,30 +2823,62 @@ function renderCuadre() {
 
   document.getElementById('cuadre-kpi-ventas').textContent = totalUnidades.toLocaleString('es-CL');
   document.getElementById('cuadre-kpi-lb').textContent = totalLb.toFixed(0) + ' lb';
-  document.getElementById('cuadre-kpi-batches').textContent = totalBatches.toFixed(1);
+  document.getElementById('cuadre-kpi-batches').textContent = Math.round(totalBatches).toLocaleString('es-CL');
 
   // Mix ventas
   const mixCard = document.getElementById('cuadre-mix-card');
   mixCard.style.display = 'block';
   const mixPorSabor = {};
   ventas.forEach(v => {
-    const k = v.sabor + '|' + v.formato;
-    if (!mixPorSabor[k]) mixPorSabor[k] = { sabor: v.sabor, formato: v.formato, unidades: 0, lb: 0 };
-    const lb = FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0;
+    const k = v.sabor + '|' + (v.formato || 'Bebida');
+    if (!mixPorSabor[k]) mixPorSabor[k] = { sabor: v.sabor, formato: v.formato || '—', unidades: 0, lb: 0, esBebida: v.esBebida };
+    const lb = v.esBebida ? 0 : (FORMATO_LB[FORMATO_MAP[v.formato] || v.formato] || 0);
     mixPorSabor[k].unidades += v.unidades;
     mixPorSabor[k].lb += v.unidades * lb;
   });
 
-  const mixRows = Object.values(mixPorSabor).sort((a,b) => b.lb - a.lb);
-  document.getElementById('tabla-mix-ventas').innerHTML = mixRows.map(r => {
+  // Agrupar también por sabor para subtotales
+  const totalPorSabor = {};
+  Object.values(mixPorSabor).forEach(r => {
+    if (!totalPorSabor[r.sabor]) totalPorSabor[r.sabor] = { unidades: 0, lb: 0 };
+    totalPorSabor[r.sabor].unidades += r.unidades;
+    totalPorSabor[r.sabor].lb += r.lb;
+  });
+
+  const FORMATO_ORDEN = ['Pequeño','Mediano','Big Pop','Balde 3 Litros','Balde 5 Litros','Party Bag','Big Tin 13.5L','Refill Balde 3 Litros','Refill Balde 5 Litros','Refill Big Tin'];
+  const mixRows = Object.values(mixPorSabor).sort((a,b) => {
+    if (a.sabor !== b.sabor) return a.sabor.localeCompare(b.sabor);
+    const oa = FORMATO_ORDEN.indexOf(a.formato);
+    const ob = FORMATO_ORDEN.indexOf(b.formato);
+    if (oa !== ob) return (oa === -1 ? 99 : oa) - (ob === -1 ? 99 : ob);
+    return b.lb - a.lb;
+  });
+
+  // Renderizar con subtotales por sabor
+  let htmlMix = '';
+  let saborActual = '';
+  mixRows.forEach(r => {
+    // Si cambia el sabor, agrega fila de subtotal del sabor anterior
+    if (saborActual && r.sabor !== saborActual) {
+      const tot = totalPorSabor[saborActual];
+      const pctTot = totalLb > 0 ? (tot.lb / totalLb * 100).toFixed(1) : 0;
+      htmlMix += `<tr style="background:var(--surface2);font-weight:700;border-top:1px solid var(--yellow);">
+        <td colspan="2" style="color:var(--yellow);">↳ Total ${saborActual}</td>
+        <td style="text-align:right;color:var(--yellow);">${tot.unidades.toLocaleString('es-CL')}</td>
+        <td style="text-align:right;color:var(--yellow);">${tot.lb.toFixed(0)} lb</td>
+        <td style="text-align:right;color:var(--yellow);">${(tot.lb/BATCH_LB).toFixed(1)}</td>
+        <td style="text-align:right;color:var(--yellow);">${pctTot}%</td>
+      </tr>`;
+    }
+    saborActual = r.sabor;
     const batches = r.lb / BATCH_LB;
     const pct = totalLb > 0 ? (r.lb / totalLb * 100).toFixed(1) : 0;
-    return `<tr>
+    htmlMix += `<tr>
       <td><b>${r.sabor}</b></td>
       <td>${r.formato}</td>
-      <td>${r.unidades.toLocaleString('es-CL')}</td>
-      <td>${r.lb.toFixed(0)} lb</td>
-      <td>${batches.toFixed(2)}</td>
+      <td style="text-align:right;">${r.unidades.toLocaleString('es-CL')}</td>
+      <td style="text-align:right;">${r.lb.toFixed(0)} lb</td>
+      <td style="text-align:right;">${batches.toFixed(2)}</td>
       <td>
         <div style="display:flex;align-items:center;gap:8px;">
           <div class="progress-wrap" style="width:80px;"><div class="progress-bar green" style="width:${pct}%"></div></div>
@@ -2547,7 +2886,20 @@ function renderCuadre() {
         </div>
       </td>
     </tr>`;
-  }).join('');
+  });
+  // Último subtotal
+  if (saborActual) {
+    const tot = totalPorSabor[saborActual];
+    const pctTot = totalLb > 0 ? (tot.lb / totalLb * 100).toFixed(1) : 0;
+    htmlMix += `<tr style="background:var(--surface2);font-weight:700;border-top:1px solid var(--yellow);">
+      <td colspan="2" style="color:var(--yellow);">↳ Total ${saborActual}</td>
+      <td style="text-align:right;color:var(--yellow);">${tot.unidades.toLocaleString('es-CL')}</td>
+      <td style="text-align:right;color:var(--yellow);">${tot.lb.toFixed(0)} lb</td>
+      <td style="text-align:right;color:var(--yellow);">${(tot.lb/BATCH_LB).toFixed(1)}</td>
+      <td style="text-align:right;color:var(--yellow);">${pctTot}%</td>
+    </tr>`;
+  }
+  document.getElementById('tabla-mix-ventas').innerHTML = htmlMix;
 
   // Cuadre por insumo
   const tbody = document.getElementById('tabla-cuadre');
@@ -2663,9 +3015,16 @@ function guardarInsumo() {
     DB.insumos.push({ id: uid(), nombre, categoria, unidad, minimo, critico, consumoSemanal, local, proveedor, costo });
   }
   guardarDB('insumos');
+  // Upsert solo el insumo editado con campos limpios
+  const insActual = DB.insumos.find(i => i.id === (editId || DB.insumos[DB.insumos.length-1].id));
+  if (insActual) {
+    const { id, nombre: n2, categoria: c2, unidad: u2, minimo: m2, critico: cr2, consumoSemanal: cs2, local: l2, proveedor: p2, costo: co2 } = insActual;
+    sbUpsertMany('insumos', [{ id, nombre: n2, categoria: c2, unidad: u2, minimo: m2, critico: cr2, consumoSemanal: cs2, local: l2, proveedor: p2, costo: co2 }]);
+  }
   toast('✅ Insumo guardado');
   limpiarFormInsumo();
   renderConfigInsumos();
+  renderStock();
 }
 
 function limpiarFormInsumo() {
@@ -2760,10 +3119,39 @@ function agruparPorCategoria(filas, getCat) {
   return { grupos, cats };
 }
 
+// Estado de categorías colapsadas
+const _catColapsadas = new Set();
+
+// Formatear número: sin decimales, con separador de miles
+function fmtNum(n, unidad) {
+  if (n === null || n === undefined || isNaN(n)) return '<span style="color:var(--text-dim)">—</span>';
+  return Math.round(n).toLocaleString('es-CL') + (unidad ? ' ' + unidad : '');
+}
+
+function toggleCategoria(cat) {
+  if (_catColapsadas.has(cat)) {
+    _catColapsadas.delete(cat);
+  } else {
+    _catColapsadas.add(cat);
+  }
+  // Mostrar/ocultar filas de esa categoría
+  document.querySelectorAll(`[data-cat="${CSS.escape(cat)}"]`).forEach(row => {
+    row.style.display = _catColapsadas.has(cat) ? 'none' : '';
+  });
+  // Actualizar ícono del header
+  const btn = document.querySelector(`[data-cat-toggle="${CSS.escape(cat)}"]`);
+  if (btn) btn.textContent = _catColapsadas.has(cat) ? '▶' : '▼';
+}
+
 function cabeceraCategoria(cat, colspan) {
   const icon = ICONOS_CAT[cat] || '📋';
-  return `<tr class="cat-header-row">
-    <td colspan="${colspan}"><span class="cat-header-label">${icon} ${cat}</span></td>
+  const collapsed = _catColapsadas.has(cat);
+  const arrow = collapsed ? '▶' : '▼';
+  return `<tr class="cat-header-row" onclick="toggleCategoria('${cat.replace(/'/g,"\\'")}');" style="cursor:pointer;user-select:none;">
+    <td colspan="${colspan}">
+      <span class="cat-header-label">${icon} ${cat}</span>
+      <span data-cat-toggle="${cat}" style="float:right;font-size:11px;color:var(--text-muted);">${arrow}</span>
+    </td>
   </tr>`;
 }
 
@@ -3030,20 +3418,11 @@ async function bajarDatosDesdeSheets(local) {
       }
     }
     setSyncStatus('ok');
-    // Cargar ocultos ANTES de renderizar
-    await cargarOcultos();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
       renderDashboard(); renderStock(); renderConfigInsumos();
       filtrarSalidas(); filtrarIngresos(); filtrarInventario(); filtrarInventarioLocal();
-    }
-    // Repoblar selects de insumos siempre (para vendedores)
-    ['ing-insumo','sal-insumo','inv-insumo','invl-insumo'].forEach(id => poblarSelectInsumos(id));
-    // Repoblar responsables según local del perfil
-    if (perfilActual) {
-      const localResp = perfilActual.local || 'ambos';
-      ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
     }
   } catch(e) {
     setSyncStatus('error');
@@ -3147,12 +3526,7 @@ init();
 </script>
 <script>
 (function() {
-  const waitForData = setInterval(() => {
-    if (typeof seleccionarPerfil === 'function' && typeof DB !== 'undefined') {
-      clearInterval(waitForData);
-      seleccionarPerfil('vendedor-paj');
-    }
-  }, 100);
+  function verificarPass() { const v = document.getElementById('pass-input').value; if (v === 'admin2026') { document.getElementById('pass-screen').style.display='none'; seleccionarPerfil('admin'); } else { document.getElementById('pass-error').style.display='block'; document.getElementById('pass-input').value=''; } } window.verificarPass=verificarPass;
 })();
 </script>
 </body>
