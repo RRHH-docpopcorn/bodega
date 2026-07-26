@@ -3405,6 +3405,9 @@ async function gasPost(payload) {
 async function bajarDatosDesdeSheets(local) {
   setSyncStatus('syncing');
   try {
+    const hayFoco = document.activeElement &&
+      ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
+
     const insumos = await sbSelect('insumos');
     if (Array.isArray(insumos)) {
       DB.insumos = insumos;
@@ -3418,8 +3421,6 @@ async function bajarDatosDesdeSheets(local) {
       }
     }
     setSyncStatus('ok');
-    const hayFoco = document.activeElement &&
-      ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
       renderDashboard(); renderStock(); renderConfigInsumos();
       filtrarSalidas(); filtrarIngresos(); filtrarInventario(); filtrarInventarioLocal();
