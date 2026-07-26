@@ -1757,13 +1757,25 @@ function renderDashboard() {
   document.getElementById('kpi-bajo').textContent = bajo;
   document.getElementById('kpi-quiebre').textContent = quiebre;
 
-  // Alertas
+  // Alertas en dos columnas por local
   const ac = document.getElementById('dash-alerts-container');
   ac.innerHTML = '';
   if (alertas.length > 0) {
-    alertas.forEach(a => {
-      ac.innerHTML += `<div class="alert-strip">🔴 <b>${a.ins}</b> en <b>${a.local}</b> — Stock estimado: ${a.stock} ${a.unidad}. ¡Riesgo de quiebre!</div>`;
-    });
+    const alertasPO  = alertas.filter(a => a.local === 'Plaza Oeste');
+    const alertasPAJ = alertas.filter(a => a.local === 'Pajaritos');
+    const colPO  = alertasPO.map(a  => `<div class="alert-strip">🔴 <b>${a.ins}</b> — Stock: ${fmtNum(parseFloat(a.stock), a.unidad)}</div>`).join('');
+    const colPAJ = alertasPAJ.map(a => `<div class="alert-strip">🔴 <b>${a.ins}</b> — Stock: ${fmtNum(parseFloat(a.stock), a.unidad)}</div>`).join('');
+    ac.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🏪 Plaza Oeste</div>
+          ${colPO || '<div style="color:var(--text-muted);font-size:13px;">Sin alertas críticas</div>'}
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">🏪 Pajaritos</div>
+          ${colPAJ || '<div style="color:var(--text-muted);font-size:13px;">Sin alertas críticas</div>'}
+        </div>
+      </div>`;
   }
   if (bajo > 0) {
     ac.innerHTML += `<div class="alert-strip amber">⚠️ ${bajo} insumo(s) con stock bajo el mínimo. Revisar pronto.</div>`;
@@ -3528,6 +3540,9 @@ init();
 <script>
 (function() {
   function verificarPass() { const v = document.getElementById('pass-input').value; if (v === 'admin2026') { document.getElementById('pass-screen').style.display='none'; seleccionarPerfil('admin'); } else { document.getElementById('pass-error').style.display='block'; document.getElementById('pass-input').value=''; } } window.verificarPass=verificarPass;
+  // Auto-login admin sin clave
+  document.getElementById('pass-screen').style.display='none';
+  seleccionarPerfil('admin');
 })();
 </script>
 </body>
