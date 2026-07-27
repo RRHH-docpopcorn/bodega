@@ -1235,11 +1235,26 @@
       <div class="form-grid cols2">
         <div class="field">
           <label>Nombre del insumo</label>
-          <input type="text" id="cfg-nombre" placeholder="Ej: Maíz palomero">
+          <select id="cfg-nombre-select" onchange="onCfgNombreSelect(this.value)">
+            <option value="">Seleccionar insumo existente...</option>
+            <option value="__nuevo__">➕ Nuevo insumo</option>
+          </select>
+          <input type="text" id="cfg-nombre" placeholder="Nombre del nuevo insumo" style="display:none;margin-top:8px;">
         </div>
         <div class="field">
           <label>Categoría</label>
-          <input type="text" id="cfg-categoria" placeholder="Ej: Grano, Aceite, Empaque…">
+          <select id="cfg-categoria-select" onchange="onCfgCatSelect(this.value)">
+            <option value="">Seleccionar categoría...</option>
+            <option value="Insumos">Insumos</option>
+            <option value="Sabores">Sabores</option>
+            <option value="Envases">Envases</option>
+            <option value="Bebidas">Bebidas</option>
+            <option value="Personal">Personal</option>
+            <option value="Aseo">Aseo</option>
+            <option value="Oficina">Oficina</option>
+            <option value="__nueva__">➕ Nueva categoría</option>
+          </select>
+          <input type="text" id="cfg-categoria" placeholder="Nueva categoría" style="display:none;margin-top:8px;">
         </div>
         <div class="field">
           <label>Unidad de medida</label>
@@ -3004,19 +3019,79 @@ function renderCMV() {}
 // ══════════════════════════════════════════════════
 // CONFIGURACIÓN INSUMOS
 // ══════════════════════════════════════════════════
+function poblarCfgNombreSelect() {
+  const sel = document.getElementById('cfg-nombre-select');
+  if (!sel) return;
+  const nombres = [...new Set(DB.insumos.map(i => i.nombre))].sort();
+  const opts = nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  sel.innerHTML = `<option value="">Seleccionar insumo existente...</option><option value="__nuevo__">➕ Nuevo insumo</option>${opts}`;
+}
+
+function onCfgNombreSelect(val) {
+  const input = document.getElementById('cfg-nombre');
+  if (val === '__nuevo__') {
+    input.style.display = 'block';
+    input.value = '';
+    input.focus();
+    // Limpiar resto del form
+    limpiarFormInsumo(true);
+  } else if (val) {
+    input.style.display = 'none';
+    input.value = val;
+    // Auto-rellenar con datos del insumo existente (último registro con ese nombre)
+    const ins = [...DB.insumos].reverse().find(i => i.nombre === val);
+    if (ins) {
+      document.getElementById('cfg-edit-id').value = ins.id;
+      document.getElementById('cfg-categoria-select').value = ins.categoria || '';
+      document.getElementById('cfg-categoria').value = ins.categoria || '';
+      document.getElementById('cfg-categoria').style.display = 'none';
+      document.getElementById('cfg-unidad').value = ins.unidad || '';
+      document.getElementById('cfg-minimo').value = ins.minimo || 0;
+      document.getElementById('cfg-critico').value = ins.critico || 0;
+      document.getElementById('cfg-consumo').value = ins.consumoSemanal || 0;
+      document.getElementById('cfg-local').value = ins.local || 'ambos';
+      document.getElementById('cfg-proveedor').value = ins.proveedor || '';
+      document.getElementById('cfg-costo').value = ins.costo || 0;
+    }
+  } else {
+    input.style.display = 'none';
+    input.value = '';
+  }
+}
+
+function onCfgCatSelect(val) {
+  const input = document.getElementById('cfg-categoria');
+  if (val === '__nueva__') {
+    input.style.display = 'block';
+    input.value = '';
+    input.focus();
+  } else {
+    input.style.display = 'none';
+    input.value = val;
+  }
+}
+
 function guardarInsumo() {
   const editId = document.getElementById('cfg-edit-id').value;
-  const nombre = document.getElementById('cfg-nombre').value.trim();
-  const categoria = document.getElementById('cfg-categoria').value.trim();
+  // Nombre: del input si está visible, si no del select
+  const nomInput = document.getElementById('cfg-nombre');
+  const nomSel   = document.getElementById('cfg-nombre-select');
+  const nombre   = (nomInput.style.display !== 'none' ? nomInput.value : nomSel.value).trim();
+  // Categoría: del input si está visible, si no del select
+  const catInput = document.getElementById('cfg-categoria');
+  const catSel   = document.getElementById('cfg-categoria-select');
+  const categoria = (catInput.style.display !== 'none' ? catInput.value : catSel.value).trim();
+
   const unidad = document.getElementById('cfg-unidad').value.trim();
   const minimo = parseFloat(document.getElementById('cfg-minimo').value) || 0;
   const critico = parseFloat(document.getElementById('cfg-critico').value) || 0;
   const consumoSemanal = parseFloat(document.getElementById('cfg-consumo').value) || 0;
   const local = document.getElementById('cfg-local').value;
-  const proveedor = document.getElementById('cfg-proveedor').value.trim();
+  const proveedor = document.getElementById('cfg-proveedor').value;
   const costo = parseFloat(document.getElementById('cfg-costo').value) || 0;
 
-  if (!nombre || !unidad) { toast('⚠️ Nombre y unidad son obligatorios', true); return; }
+  if (!nombre || nombre === '__nuevo__') { toast('⚠️ Ingresa el nombre del insumo', true); return; }
+  if (!unidad) { toast('⚠️ La unidad es obligatoria', true); return; }
 
   if (editId) {
     const idx = DB.insumos.findIndex(i => i.id === editId);
@@ -3027,7 +3102,6 @@ function guardarInsumo() {
     DB.insumos.push({ id: uid(), nombre, categoria, unidad, minimo, critico, consumoSemanal, local, proveedor, costo });
   }
   guardarDB('insumos');
-  // Upsert solo el insumo editado con campos limpios
   const insActual = DB.insumos.find(i => i.id === (editId || DB.insumos[DB.insumos.length-1].id));
   if (insActual) {
     const { id, nombre: n2, categoria: c2, unidad: u2, minimo: m2, critico: cr2, consumoSemanal: cs2, local: l2, proveedor: p2, costo: co2 } = insActual;
@@ -3039,21 +3113,42 @@ function guardarInsumo() {
   renderStock();
 }
 
-function limpiarFormInsumo() {
+function limpiarFormInsumo(soloForm) {
   document.getElementById('cfg-edit-id').value = '';
-  ['cfg-nombre','cfg-categoria','cfg-unidad','cfg-minimo','cfg-critico','cfg-consumo','cfg-proveedor','cfg-costo'].forEach(id => {
+  ['cfg-nombre','cfg-categoria','cfg-unidad','cfg-minimo','cfg-critico','cfg-consumo','cfg-costo'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = '';
+    if (el) { el.value = ''; el.style.display = 'none'; }
   });
   document.getElementById('cfg-local').value = 'ambos';
+  document.getElementById('cfg-proveedor').value = '';
+  if (!soloForm) {
+    document.getElementById('cfg-nombre-select').value = '';
+    document.getElementById('cfg-categoria-select').value = '';
+  }
 }
 
 function editarInsumo(id) {
   const ins = getInsumo(id);
   if (!ins) return;
   document.getElementById('cfg-edit-id').value = id;
-  document.getElementById('cfg-nombre').value = ins.nombre;
-  document.getElementById('cfg-categoria').value = ins.categoria || '';
+  // Nombre
+  const nomSel = document.getElementById('cfg-nombre-select');
+  const nomInput = document.getElementById('cfg-nombre');
+  nomSel.value = ins.nombre;
+  if (!nomSel.value) { // no está en la lista
+    nomSel.value = '__nuevo__';
+    nomInput.style.display = 'block';
+  } else {
+    nomInput.style.display = 'none';
+  }
+  nomInput.value = ins.nombre;
+  // Categoría
+  const catSel = document.getElementById('cfg-categoria-select');
+  const catInput = document.getElementById('cfg-categoria');
+  catSel.value = ins.categoria || '';
+  catInput.value = ins.categoria || '';
+  catInput.style.display = 'none';
+  // Resto
   document.getElementById('cfg-unidad').value = ins.unidad;
   document.getElementById('cfg-minimo').value = ins.minimo;
   document.getElementById('cfg-critico').value = ins.critico;
@@ -3061,7 +3156,6 @@ function editarInsumo(id) {
   document.getElementById('cfg-local').value = ins.local;
   document.getElementById('cfg-proveedor').value = ins.proveedor || '';
   document.getElementById('cfg-costo').value = ins.costo || '';
-  document.querySelector('.tab-btn.active')?.scrollIntoView({ behavior: 'smooth' });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -3097,10 +3191,8 @@ function renderConfigInsumos() {
     });
   });
   tbody.innerHTML = html;
+  poblarCfgNombreSelect();
 }
-
-// ══════════════════════════════════════════════════
-// AGRUPACIÓN POR CATEGORÍA
 // ══════════════════════════════════════════════════
 const ORDEN_CATEGORIAS = ['Insumos','Sabores','Envases','Bebidas','Personal','Aseo','Oficina'];
 const ICONOS_CAT = {
