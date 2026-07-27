@@ -1911,7 +1911,8 @@ function generarConteoInventario(prefix) {
   const responsable = document.getElementById(`${prefix}-responsable`).value;
 
   if (!fecha || !local || !responsable) {
-    toast('⚠️ Selecciona fecha, local y responsable primero', true); return;
+    const falta = !fecha ? 'la fecha' : !local ? 'el local' : 'tu nombre (Responsable)';
+    toast(`⚠️ Selecciona ${falta} antes de generar el conteo`, true); return;
   }
 
   const tbody = document.getElementById(`${prefix}-conteo-tbody`);
@@ -3044,6 +3045,13 @@ async function bajarDatosDesdeSheets(local) {
     if (perfilActual) {
       const localResp = perfilActual.local || 'ambos';
       ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
+      // Fijar local en formularios si perfil tiene local fijo
+      if (perfilActual.localFijo && perfilActual.local) {
+        ['ing-local','sal-local','inv-local','invl-local'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = perfilActual.local;
+        });
+      }
     }
   } catch(e) {
     setSyncStatus('error');
