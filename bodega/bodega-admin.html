@@ -3115,9 +3115,15 @@ function guardarInsumo() {
 
 function limpiarFormInsumo(soloForm) {
   document.getElementById('cfg-edit-id').value = '';
-  ['cfg-nombre','cfg-categoria','cfg-unidad','cfg-minimo','cfg-critico','cfg-consumo','cfg-costo'].forEach(id => {
+  // Solo ocultar los inputs de texto de nombre y categoría
+  ['cfg-nombre','cfg-categoria'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; el.style.display = 'none'; }
+  });
+  // Limpiar los demás campos normalmente
+  ['cfg-unidad','cfg-minimo','cfg-critico','cfg-consumo','cfg-costo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
   });
   document.getElementById('cfg-local').value = 'ambos';
   document.getElementById('cfg-proveedor').value = '';
