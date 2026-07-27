@@ -1923,7 +1923,8 @@ function generarConteoInventario(prefix) {
   const responsable = document.getElementById(`${prefix}-responsable`).value;
 
   if (!fecha || !local || !responsable) {
-    toast('⚠️ Selecciona fecha, local y responsable primero', true); return;
+    const falta = !fecha ? 'la fecha' : !local ? 'el local' : 'tu nombre (Responsable)';
+    toast(`⚠️ Selecciona ${falta} antes de generar el conteo`, true); return;
   }
 
   const tbody = document.getElementById(`${prefix}-conteo-tbody`);
