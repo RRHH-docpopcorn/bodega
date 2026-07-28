@@ -1809,43 +1809,6 @@ function renderDashboard() {
   }
 
   // Tabla críticos
-  const tbody = document.getElementById('dash-tabla');
-  if (filas.length === 0) {
-    tbody.innerHTML = noData(5);
-  } else {
-    // Ordenar: dentro de cada cat, por estado (rojo > amarillo > sin-ancla > verde)
-    const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3 };
-    filas.sort((a, b) => {
-      const catA = ORDEN_CATEGORIAS.indexOf(a.ins.categoria || 'Otros');
-      const catB = ORDEN_CATEGORIAS.indexOf(b.ins.categoria || 'Otros');
-      if (catA !== catB) return (catA === -1 ? 99 : catA) - (catB === -1 ? 99 : catB);
-      return (ordEstado[a.estado]||99) - (ordEstado[b.estado]||99);
-    });
-
-    const { grupos, cats } = agruparPorCategoria(filas, f => f.ins.categoria || 'Otros');
-    let html = '';
-    cats.forEach(cat => {
-      html += cabeceraCategoria(cat, 5);
-      grupos[cat].forEach(f => {
-        const stockStr = f.res !== null ? fmtNum(f.res.stockEstimado, f.ins.unidad) : '<span style="color:var(--text-dim)">Sin ancla</span>';
-        let sem = '';
-        if (f.estado === 'verde') sem = `<span class="semaforo verde"><span class="dot"></span>OK</span>`;
-        else if (f.estado === 'amarillo') sem = `<span class="semaforo amarillo"><span class="dot"></span>Bajo</span>`;
-        else if (f.estado === 'rojo') sem = `<span class="semaforo rojo"><span class="dot"></span>Crítico</span>`;
-        else sem = `<span class="chip">Sin conteo</span>`;
-        const rowDisplay = _catColapsadas.has(f.ins.categoria || 'Otros') ? 'display:none;' : '';
-        html += `<tr style="${rowDisplay}" data-cat="${(f.ins.categoria || 'Otros').replace(/"/g,'&quot;')}">
-          <td><b>${f.ins.nombre}</b></td>
-          <td>${chipLocal(f.l)}</td>
-          <td>${stockStr}</td>
-          <td>${f.dias} días</td>
-          <td>${sem}</td>
-        </tr>`;
-      });
-    });
-    tbody.innerHTML = html;
-  }
-
   // Últimos movimientos
   const moves = [
     ...DB.ingresos.map(r => ({ ...r, tipo: 'Ingreso', _ts: new Date(r.fecha).getTime() })),
