@@ -1326,10 +1326,19 @@
     </div>
 
     <div class="divider"></div>
-
     <div class="card-title" style="margin-bottom:10px;">Insumos configurados</div>
     <div class="filters">
       <input type="text" placeholder="Buscar insumo…" id="filt-cfg-buscar" oninput="renderConfigInsumos()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:inherit;outline:none;flex:1;min-width:160px;">
+      <select id="filt-cfg-local" onchange="renderConfigInsumos()" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);">
+        <option value="">Todos los locales</option>
+        <option value="Plaza Oeste">Plaza Oeste</option>
+        <option value="Pajaritos">Pajaritos</option>
+      </select>
+      <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;">
+        <input type="checkbox" id="filt-cfg-ocultos" onchange="renderConfigInsumos()"
+          style="width:16px;height:16px;accent-color:var(--yellow);cursor:pointer;">
+        Mostrar ocultos
+      </label>
       <div class="filters-right">
         <button class="btn btn-ghost btn-sm" onclick="exportarCSV('insumos')">⬇ CSV</button>
         <label class="btn btn-ghost btn-sm" style="cursor:pointer;">⬆ Importar<input type="file" accept=".csv" onchange="importarCSV(event,'insumos')" style="display:none;"></label>
@@ -1343,22 +1352,6 @@
         <tbody id="tabla-insumos"></tbody>
       </table>
     </div>
-
-
-    <div class="divider"></div>
-    <div class="card-title" style="margin-bottom:10px;">Sincronización Google Sheets</div>
-    <div class="tip">🔗 Pega aquí la URL de tu Google Apps Script publicado. Una vez configurado, todos los registros se sincronizan automáticamente en tiempo real.</div>
-    <div class="form-grid cols2" style="margin-bottom:12px;">
-      <div class="field field-span2">
-        <label>URL del Apps Script</label>
-        <input type="text" id="cfg-gas-url" placeholder="https://script.google.com/macros/s/..." oninput="guardarGasUrl()">
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-      <button class="btn btn-ghost btn-sm" onclick="sincronizarDesdeSheets(perfilActual?.local||'')">↻ Sincronizar ahora</button>
-      <button class="btn btn-ghost btn-sm" onclick="testConexion()">🔍 Probar conexión</button>
-    </div>
-    <div id="cfg-gas-status" style="font-size:12px;color:var(--text-muted);"></div>
 
     <div class="divider"></div>
     <div class="card-title" style="margin-bottom:10px;">Conexión Airtable</div>
@@ -3141,7 +3134,22 @@ function editarInsumo(id) {
 
 function renderConfigInsumos() {
   const buscar = (document.getElementById('filt-cfg-buscar')?.value || '').toLowerCase();
-  let data = DB.insumos.filter(i => !buscar || i.nombre.toLowerCase().includes(buscar));
+  const localF = document.getElementById('filt-cfg-local')?.value || '';
+  const mostrarOcultosConfig = document.getElementById('filt-cfg-ocultos')?.checked || false;
+  let data = DB.insumos.filter(i => {
+    if (!buscar || i.nombre.toLowerCase().includes(buscar)) {
+      if (!localF || i.local === localF) {
+        if (!mostrarOcultosConfig) {
+          // Ocultar si está oculto en todos sus locales
+          const locals = i.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [i.local];
+          const todosOcultos = locals.every(l => DB.stockOcultos.has(`${i.id}|${l}`));
+          if (todosOcultos) return false;
+        }
+        return true;
+      }
+    }
+    return false;
+  });
   const tbody = document.getElementById('tabla-insumos');
   if (data.length === 0) { tbody.innerHTML = noData(9); return; }
 
