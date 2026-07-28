@@ -674,7 +674,6 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
-    <button class="tab-btn" onclick="switchTab('stock')">📦 Stock en vivo</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
     <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
@@ -688,11 +687,10 @@
   <!-- DASHBOARD -->
   <!-- ══════════════════════════════════════════ -->
   <div id="tab-dashboard" class="tab-content active">
-    <div class="section-title">Dashboard general</div>
+    <div class="section-title">Dashboard · Stock en vivo</div>
     <div class="section-sub" id="dash-sub">Resumen operacional · todos los locales</div>
 
-    <div id="dash-alerts-container"></div>
-
+    <!-- KPIs -->
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi yellow"><div class="kpi-value" id="kpi-insumos">—</div><div class="kpi-label">Insumos activos</div></div>
       <div class="kpi green"><div class="kpi-value" id="kpi-ok">—</div><div class="kpi-label">Stock OK</div></div>
@@ -700,25 +698,43 @@
       <div class="kpi red"><div class="kpi-value" id="kpi-quiebre">—</div><div class="kpi-label">Quiebre / riesgo</div></div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Estado de insumos críticos</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Insumo</th>
-              <th>Local</th>
-              <th>Stock est.</th>
-              <th>Cobertura</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody id="dash-tabla"></tbody>
-        </table>
+    <!-- Alertas en dos columnas -->
+    <div id="dash-alerts-container" style="margin-bottom:16px;"></div>
+
+    <!-- Filtros stock -->
+    <div class="filters" style="margin-bottom:8px;">
+      <select onchange="renderStock()" id="filt-stock-local">
+        <option value="">Todos los locales</option>
+        <option value="Plaza Oeste">Plaza Oeste</option>
+        <option value="Pajaritos">Pajaritos</option>
+      </select>
+      <select onchange="renderStock()" id="filt-stock-estado">
+        <option value="">Todos los estados</option>
+        <option value="verde">✅ OK</option>
+        <option value="amarillo">⚠️ Bajo</option>
+        <option value="rojo">🔴 Crítico</option>
+      </select>
+      <span id="badge-ocultos" style="font-size:11px;color:var(--text-dim);font-weight:600;"></span>
+      <div class="filters-right">
+        <button class="btn btn-ghost btn-sm" onclick="exportarCSV('stock')">⬇ CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="renderStock()">↻ Actualizar</button>
       </div>
     </div>
 
-    <div class="card">
+    <!-- Tabla stock -->
+    <div class="table-wrap" style="max-height:calc(100vh - 280px);overflow-y:auto;">
+      <table>
+        <thead style="position:sticky;top:0;z-index:89;background:var(--surface);">
+          <tr>
+            <th>Insumo</th><th>Local</th><th>Últ. inventario</th><th>Bodega</th><th>Local</th><th>Total</th><th>Consumo/sem</th><th>Cobertura</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-stock"></tbody>
+      </table>
+    </div>
+
+    <!-- Últimos movimientos -->
+    <div class="card" style="margin-top:16px;">
       <div class="card-title">Últimos movimientos</div>
       <div class="table-wrap">
         <table>
@@ -1482,7 +1498,7 @@ const PERFILES = {
     nombre: 'Admin',
     icon: '⚙️',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','inventario','stock','cuadre','planificador','config'],
+    tabs: ['dashboard','ingresos','salidas','cuadre','planificador','config'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1539,7 +1555,7 @@ function seleccionarPerfil(id) {
 }
 
 function aplicarTabsPerfil(perfil) {
-  const allTabs = ['dashboard','ingresos','salidas','inventario','inventario-local','stock','cuadre','planificador','config'];
+  const allTabs = ['dashboard','ingresos','salidas','inventario','inventario-local','cuadre','planificador','config'];
   allTabs.forEach(tab => {
     const btn = document.querySelector(`.tab-btn[onclick*="switchTab('${tab}')"]`);
     if (btn) btn.style.display = perfil.tabs.includes(tab) ? '' : 'none';
@@ -1600,12 +1616,8 @@ function switchTab(id) {
   event.currentTarget.classList.add('active');
   // Expandir ancho para pestañas con tablas anchas
   const mainEl = document.querySelector('.main');
-  if (mainEl) mainEl.style.maxWidth = ['stock','cuadre','config'].includes(id) ? '1400px' : '960px';
-  if (id === 'dashboard') renderDashboard();
-  if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); filtrarIngresos(); }
-  if (id === 'salidas') { poblarSelectInsumos('sal-insumo'); filtrarSalidas(); }
-  if (id === 'inventario') { poblarSelectInsumos('inv-insumo'); filtrarInventario(); }
-  if (id === 'stock') renderStock();
+  if (mainEl) mainEl.style.maxWidth = ['dashboard','cuadre','config'].includes(id) ? '1400px' : '960px';
+  if (id === 'dashboard') { renderDashboard(); renderStock(); }
   if (id === 'cuadre') {
     const mes = new Date().toISOString().slice(0,7);
     if (!document.getElementById('filt-cuadre-mes').value) {
@@ -2318,7 +2330,6 @@ function renderStock() {
         <td>${f.ins.consumoSemanal || '—'} ${f.ins.consumoSemanal ? f.ins.unidad : ''}</td>
         <td>${f.dias} d.</td>
         <td>${sem}</td>
-        <td>${btnOcultar}</td>
       </tr>`;
     });
   });
@@ -3177,6 +3188,12 @@ function renderConfigInsumos() {
   cats.forEach(cat => {
     html += cabeceraCategoria(cat, 9);
     grupos[cat].forEach(ins => {
+      const locals = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
+      const btnsOcultar = locals.map(l => {
+        const esOculto = DB.stockOcultos.has(`${ins.id}|${l}`);
+        return `<button class="btn-icon" title="${esOculto ? 'Mostrar en stock' : 'Ocultar en stock'} (${l})"
+          onclick="toggleOcultoStock('${ins.id}','${l}')" style="font-size:13px;opacity:${esOculto?'0.4':'1'}">🙈</button>`;
+      }).join('');
       html += `<tr>
         <td><b>${ins.nombre}</b></td>
         <td><span class="chip">${ins.categoria||'—'}</span></td>
@@ -3189,6 +3206,7 @@ function renderConfigInsumos() {
         <td>${ins.proveedor||'—'}</td>
         <td>
           <div class="row-actions">
+            ${btnsOcultar}
             <button class="btn-icon" title="Editar" onclick="editarInsumo('${ins.id}')">✏️</button>
             <button class="btn-icon" title="Eliminar" onclick="eliminar('insumos','${ins.id}',renderConfigInsumos)">🗑</button>
           </div>
