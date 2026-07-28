@@ -1063,11 +1063,11 @@
       </div>
     </div>
 
-    <div class="table-wrap">
+    <div class="table-wrap" style="max-height:calc(100vh - 220px);overflow-y:auto;">
       <table>
-        <thead style="position:sticky;top:145px;z-index:89;background:var(--surface);">
+        <thead style="position:sticky;top:0;z-index:89;background:var(--surface);">
           <tr>
-            <th>Insumo</th><th>Local</th><th>Últ. inventario</th><th>Bodega</th><th>Local</th><th>Total</th><th>Mín.</th><th>Cobertura</th><th>Estado</th><th></th>
+            <th>Insumo</th><th>Local</th><th>Últ. inventario</th><th>Bodega</th><th>Local</th><th>Total</th><th>Consumo/sem</th><th>Cobertura</th><th>Estado</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-stock"></tbody>
@@ -2315,7 +2315,7 @@ function renderStock() {
         <td style="text-align:right;color:var(--text-muted);">${f.res !== null ? stockBodega : '<span style="color:var(--text-dim)">—</span>'}</td>
         <td style="text-align:right;color:var(--text-muted);">${stockLocalVal > 0 ? fmtNum(stockLocalVal, f.ins.unidad) : '—'}</td>
         <td style="text-align:right;">${stockStr}</td>
-        <td>${f.ins.minimo} ${f.ins.unidad}</td>
+        <td>${f.ins.consumoSemanal || '—'} ${f.ins.consumoSemanal ? f.ins.unidad : ''}</td>
         <td>${f.dias} d.</td>
         <td>${sem}</td>
         <td>${btnOcultar}</td>
