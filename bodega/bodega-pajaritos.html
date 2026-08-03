@@ -908,10 +908,10 @@
         </div>
         <div class="field">
           <label>Responsable</label>
-          <select id="inv-responsable"><option value="">Seleccionar responsable</option></select>
+          <select id="inv-responsable" onchange="onResponsableChange(this.id);document.getElementById('inv-btn-generar').disabled=!this.value"><option value="">Seleccionar responsable</option></select>
         </div>
         <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')">📋 Generar conteo</button>
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')" id="inv-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
 
@@ -972,10 +972,10 @@
         </div>
         <div class="field">
           <label>Responsable</label>
-          <select id="invl-responsable"><option value="">Seleccionar responsable</option></select>
+          <select id="invl-responsable" onchange="onResponsableChange(this.id);document.getElementById('invl-btn-generar').disabled=!this.value"><option value="">Seleccionar responsable</option></select>
         </div>
         <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')">📋 Generar conteo</button>
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')" id="invl-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
 
@@ -1282,14 +1282,22 @@ const TRABAJADORES = {
   'ambos':       ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas','Katalina Ibáñez','Antonia Campusano','Roberto Luzanto','Viviana Ancacoy'],
 };
 
+// Guardar responsable seleccionado por formulario
+const _responsableGuardado = {};
+
 function poblarResponsable(selectId, local) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const lista = local ? (TRABAJADORES[local] || TRABAJADORES['ambos']) : TRABAJADORES['ambos'];
-  const current = sel.value;
+  const current = _responsableGuardado[selectId] || sel.value;
   sel.innerHTML = '<option value="">Seleccionar responsable</option>';
   lista.forEach(n => sel.innerHTML += `<option value="${n}">${n}</option>`);
   if (current && lista.includes(current)) sel.value = current;
+}
+
+function onResponsableChange(selectId) {
+  const sel = document.getElementById(selectId);
+  if (sel) _responsableGuardado[selectId] = sel.value;
 }
 
 function fijarLocal(selectId, inputId, local) {
