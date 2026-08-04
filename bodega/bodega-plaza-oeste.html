@@ -1278,9 +1278,27 @@
 // ══════════════════════════════════════════════════
 const TRABAJADORES = {
   'Plaza Oeste': ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas'],
-  'Pajaritos':   ['Gonzalo Heríquez','Katalina Ibáñez','Antonia Campusano','Roberto Luzanto','Viviana Ancacoy'],
-  'ambos':       ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas','Katalina Ibáñez','Antonia Campusano','Roberto Luzanto','Viviana Ancacoy'],
+  'Pajaritos':   ['Gonzalo Heríquez','Katalina Ibáñez','Roberto Luzanto','Valentina Canales','Nadiessna Araus','Aidely Guzmán'],
+  'ambos':       ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas','Katalina Ibáñez','Roberto Luzanto','Valentina Canales','Nadiessna Araus','Aidely Guzmán'],
 };
+
+// Cargar trabajadores desde Supabase (actualiza TRABAJADORES dinámicamente)
+async function cargarTrabajadores() {
+  try {
+    const records = await sbFetch(SB_URL+'/rest/v1/trabajadores?select=nombre,local&order=nombre', {method:'GET'});
+    if (!Array.isArray(records) || records.length === 0) return;
+    TRABAJADORES['Plaza Oeste'] = records.filter(r => r.local === 'Plaza Oeste').map(r => r.nombre);
+    TRABAJADORES['Pajaritos']   = records.filter(r => r.local === 'Pajaritos').map(r => r.nombre);
+    TRABAJADORES['ambos']       = records.map(r => r.nombre).filter((v,i,a) => a.indexOf(v) === i);
+    // Re-poblar todos los selects de responsable activos
+    ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (sel && sel.options.length > 1) poblarResponsable(id, perfilActual?.local || '');
+    });
+  } catch(e) {
+    console.warn('No se pudo cargar trabajadores desde Supabase:', e.message);
+  }
+}
 
 // Guardar responsable seleccionado por formulario
 const _responsableGuardado = {};
@@ -3039,8 +3057,9 @@ async function bajarDatosDesdeSheets(local) {
       }
     }
     setSyncStatus('ok');
-    // Cargar ocultos ANTES de renderizar
+    // Cargar ocultos y trabajadores ANTES de renderizar
     await cargarOcultos();
+    await cargarTrabajadores();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
