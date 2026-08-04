@@ -920,10 +920,10 @@
         </div>
         <div class="field">
           <label>Responsable</label>
-          <select id="inv-responsable"><option value="">Seleccionar responsable</option></select>
+          <select id="inv-responsable" onchange="onResponsableChange(this.id);document.getElementById('inv-btn-generar').disabled=!this.value"><option value="">Seleccionar responsable</option></select>
         </div>
         <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')">📋 Generar conteo</button>
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')" id="inv-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
 
@@ -984,10 +984,10 @@
         </div>
         <div class="field">
           <label>Responsable</label>
-          <select id="invl-responsable"><option value="">Seleccionar responsable</option></select>
+          <select id="invl-responsable" onchange="onResponsableChange(this.id);document.getElementById('invl-btn-generar').disabled=!this.value"><option value="">Seleccionar responsable</option></select>
         </div>
         <div class="field" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')">📋 Generar conteo</button>
+          <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')" id="invl-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
 
@@ -1290,18 +1290,44 @@
 // ══════════════════════════════════════════════════
 const TRABAJADORES = {
   'Plaza Oeste': ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas'],
-  'Pajaritos':   ['Gonzalo Heríquez','Katalina Ibáñez','Antonia Campusano','Roberto Luzanto','Viviana Ancacoy'],
-  'ambos':       ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas','Katalina Ibáñez','Antonia Campusano','Roberto Luzanto','Viviana Ancacoy'],
+  'Pajaritos':   ['Gonzalo Heríquez','Katalina Ibáñez','Roberto Luzanto','Valentina Canales','Nadiessna Araus','Aidely Guzmán'],
+  'ambos':       ['Gonzalo Heríquez','Javiera Espinoza','Victoria Carrera','Neyrut Rincón','Michelle Cuevas','Katalina Ibáñez','Roberto Luzanto','Valentina Canales','Nadiessna Araus','Aidely Guzmán'],
 };
+
+// Cargar trabajadores desde Supabase (actualiza TRABAJADORES dinámicamente)
+async function cargarTrabajadores() {
+  try {
+    const records = await sbFetch(SB_URL+'/rest/v1/trabajadores?select=nombre,local&order=nombre', {method:'GET'});
+    if (!Array.isArray(records) || records.length === 0) return;
+    TRABAJADORES['Plaza Oeste'] = records.filter(r => r.local === 'Plaza Oeste').map(r => r.nombre);
+    TRABAJADORES['Pajaritos']   = records.filter(r => r.local === 'Pajaritos').map(r => r.nombre);
+    TRABAJADORES['ambos']       = records.map(r => r.nombre).filter((v,i,a) => a.indexOf(v) === i);
+    // Re-poblar todos los selects de responsable activos
+    ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => {
+      const sel = document.getElementById(id);
+      if (sel && sel.options.length > 1) poblarResponsable(id, perfilActual?.local || '');
+    });
+  } catch(e) {
+    console.warn('No se pudo cargar trabajadores desde Supabase:', e.message);
+  }
+}
+
+// Guardar responsable seleccionado por formulario
+const _responsableGuardado = {};
 
 function poblarResponsable(selectId, local) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const lista = local ? (TRABAJADORES[local] || TRABAJADORES['ambos']) : TRABAJADORES['ambos'];
-  const current = sel.value;
+  const current = _responsableGuardado[selectId] || sel.value;
   sel.innerHTML = '<option value="">Seleccionar responsable</option>';
   lista.forEach(n => sel.innerHTML += `<option value="${n}">${n}</option>`);
   if (current && lista.includes(current)) sel.value = current;
+}
+
+function onResponsableChange(selectId) {
+  const sel = document.getElementById(selectId);
+  if (sel) _responsableGuardado[selectId] = sel.value;
 }
 
 function fijarLocal(selectId, inputId, local) {
@@ -3043,6 +3069,7 @@ async function bajarDatosDesdeSheets(local) {
       }
     }
     setSyncStatus('ok');
+    await cargarTrabajadores();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
