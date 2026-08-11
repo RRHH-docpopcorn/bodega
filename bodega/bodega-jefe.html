@@ -1983,7 +1983,7 @@ function generarConteoInventario(prefix) {
   setTimeout(() => tbody.querySelector('.conteo-input')?.focus(), 100);
 }
 
-function guardarConteoMasivo(prefix, tabla) {
+async function guardarConteoMasivo(prefix, tabla) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
   const responsable = document.getElementById(`${prefix}-responsable`).value;
@@ -1993,6 +1993,7 @@ function guardarConteoMasivo(prefix, tabla) {
   }
 
   const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
+
   const records = [];
   inputs.forEach(inp => {
     const val = parseFloat(inp.value);
@@ -2011,14 +2012,28 @@ function guardarConteoMasivo(prefix, tabla) {
 
   if (records.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
 
-  DB[tabla] = DB[tabla] || [];
-  DB[tabla].push(...records);
-  guardarDB(tabla);
-  sbUpsertMany(tabla, records);
-  document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
-  if (tabla === 'inventario') filtrarInventario();
-  else filtrarInventarioLocal();
-  toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
+  const btn = document.querySelector(`#${prefix}-conteo-wrap .btn-primary`);
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  // IMPORTANTE: se espera la respuesta real de Supabase antes de decir "guardado".
+  // Si falla, NO se actualiza el estado local ni se muestra mensaje de éxito,
+  // y los valores ingresados se mantienen en pantalla para reintentar.
+  try {
+    const resp = await sbUpsertMany(tabla, records);
+
+    DB[tabla] = DB[tabla] || [];
+    DB[tabla].push(...records);
+    guardarDB(tabla);
+    document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
+    if (tabla === 'inventario') filtrarInventario();
+    else filtrarInventarioLocal();
+    toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
+  } catch (e) {
+    toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en pantalla, vuelve a presionar Guardar.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
 }
 
 // ══════════════════════════════════════════════
