@@ -1936,10 +1936,6 @@ function generarConteoInventario(prefix) {
   const local = document.getElementById(`${prefix}-local`).value;
   const responsable = document.getElementById(`${prefix}-responsable`).value;
 
-  console.log('[INVENTARIO DEBUG] generarConteoInventario tipo:', prefix === 'inv' ? 'bodega' : 'local',
-    '| local:', local, '| responsable:', responsable,
-    '| responsableGuardado:', _responsableGuardado[`${prefix}-responsable`]);
-
   if (!fecha || !local || !responsable) {
     const falta = !fecha ? 'la fecha' : !local ? 'el local' : 'tu nombre (Responsable)';
     toast(`⚠️ Selecciona ${falta} antes de generar el conteo`, true); return;
@@ -1949,9 +1945,6 @@ function generarConteoInventario(prefix) {
   const insumos = [...DB.insumos]
     .filter(ins => ins.local === local && !DB.stockOcultos.has(`${ins.id}|${local}`))
     .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
-
-  console.log('[INVENTARIO DEBUG] DB.insumos totales:', DB.insumos.length,
-    '| insumos filtrados para local="' + local + '":', insumos.length);
 
   if (insumos.length === 0) {
     toast('⚠️ Los insumos aún se están cargando, espera unos segundos e inténtalo de nuevo', true);
@@ -1988,19 +1981,11 @@ async function guardarConteoMasivo(prefix, tabla) {
   const local = document.getElementById(`${prefix}-local`).value;
   const responsable = document.getElementById(`${prefix}-responsable`).value;
 
-  console.log('[INVENTARIO DEBUG] === guardarConteoMasivo ===');
-  console.log('[INVENTARIO DEBUG] responsable:', responsable);
-  console.log('[INVENTARIO DEBUG] responsableGuardado:', _responsableGuardado[`${prefix}-responsable`]);
-  console.log('[INVENTARIO DEBUG] tipo:', tabla === 'inventario' ? 'bodega' : 'local', '| local:', local, '| tabla destino:', tabla);
-
   if (!fecha || !local || !responsable) {
     toast('⚠️ Completa fecha, local y responsable', true); return;
   }
 
   const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
-  console.log('[INVENTARIO DEBUG] inputs encontrados:', inputs.length);
-  console.log('[INVENTARIO DEBUG] inputs (id insumo / valor):',
-    [...inputs].map(i => ({ insumoId: i.dataset.id, valor: i.value })));
 
   const records = [];
   inputs.forEach(inp => {
@@ -2018,11 +2003,7 @@ async function guardarConteoMasivo(prefix, tabla) {
     }
   });
 
-  console.log('[INVENTARIO DEBUG] registros construidos:', records.length);
-
   if (records.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
-
-  console.log('[INVENTARIO DEBUG] payload a Supabase:', records);
 
   const btn = document.querySelector(`#${prefix}-conteo-wrap .btn-primary`);
   const btnTextoOriginal = btn ? btn.textContent : '';
@@ -2033,8 +2014,6 @@ async function guardarConteoMasivo(prefix, tabla) {
   // y los valores ingresados se mantienen en pantalla para reintentar.
   try {
     const resp = await sbUpsertMany(tabla, records);
-    console.log('[INVENTARIO DEBUG] respuesta Supabase:', resp);
-    console.log('[INVENTARIO DEBUG] error Supabase: ninguno');
 
     DB[tabla] = DB[tabla] || [];
     DB[tabla].push(...records);
@@ -2044,7 +2023,6 @@ async function guardarConteoMasivo(prefix, tabla) {
     else filtrarInventarioLocal();
     toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
   } catch (e) {
-    console.error('[INVENTARIO DEBUG] error Supabase:', e);
     toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en pantalla, vuelve a presionar Guardar.', true);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
@@ -3094,9 +3072,6 @@ async function bajarDatosDesdeSheets(local) {
     for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       const records = await sbSelect(tabla, local || null);
       if (Array.isArray(records)) {
-        if (tabla === 'inventario' || tabla === 'inventario_local') {
-          console.log(`[INVENTARIO DEBUG] sync automático sobrescribe DB.${tabla} con`, records.length, 'registros recuperados de Supabase (local filtro:', local || 'todos', ')');
-        }
         DB[tabla] = records;
         guardarDB(tabla);
       }
