@@ -1946,6 +1946,11 @@ function generarConteoInventario(prefix) {
     .filter(ins => ins.local === local && !DB.stockOcultos.has(`${ins.id}|${local}`))
     .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
 
+  if (insumos.length === 0) {
+    toast('⚠️ Los insumos aún se están cargando, espera unos segundos e inténtalo de nuevo', true);
+    return;
+  }
+
   let catActual = '';
   let html = '';
   insumos.forEach(ins => {
@@ -3069,11 +3074,20 @@ async function bajarDatosDesdeSheets(local) {
     // Repoblar selects de insumos siempre (para vendedores)
     ['ing-insumo','sal-insumo','inv-insumo','invl-insumo'].forEach(id => poblarSelectInsumos(id));
     // Repoblar responsables según local del perfil
+    // (si hay un conteo de inventario abierto, no se toca ese formulario para no perder la selección en curso)
     if (perfilActual) {
       const localResp = perfilActual.local || 'ambos';
-      ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
+      const invAbierto = document.getElementById('inv-conteo-wrap')?.style.display === 'block';
+      const invlAbierto = document.getElementById('invl-conteo-wrap')?.style.display === 'block';
+      const idsResponsable = ['ing-responsable','sal-responsable'];
+      if (!invAbierto) idsResponsable.push('inv-responsable');
+      if (!invlAbierto) idsResponsable.push('invl-responsable');
+      idsResponsable.forEach(id => poblarResponsable(id, localResp));
       if (perfilActual.localFijo && perfilActual.local) {
-        ['ing-local','sal-local','inv-local','invl-local'].forEach(id => {
+        const idsLocal = ['ing-local','sal-local'];
+        if (!invAbierto) idsLocal.push('inv-local');
+        if (!invlAbierto) idsLocal.push('invl-local');
+        idsLocal.forEach(id => {
           const el = document.getElementById(id);
           if (el) el.value = perfilActual.local;
         });
