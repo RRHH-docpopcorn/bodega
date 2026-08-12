@@ -1875,7 +1875,7 @@ function setFechaHoy(id) {
   }
 }
 
-function guardarIngreso() {
+async function guardarIngreso() {
   const fecha = document.getElementById('ing-fecha').value;
   const local = document.getElementById('ing-local').value;
   const proveedor = getProveedorValue();
@@ -1891,19 +1891,33 @@ function guardarIngreso() {
     toast('⚠️ Completa fecha, local, insumo, cantidad y responsable', true); return;
   }
 
-  DB.ingresos.push({
+  const registro = {
     id: uid(), fecha, local, proveedor,
     insumoId, unidad: ins ? ins.unidad : '',
     cantidad, responsable, obs, lote, vencimiento
-  });
-  guardarDB('ingresos');
-  const recIng = DB.ingresos[DB.ingresos.length - 1];
-  gasPost({ accion: 'insertar', local, tabla: 'ingresos', record: recIng });
-  toast('✅ Ingreso registrado');
-  limpiarFormIngreso();
-  filtrarIngresos();
-  // Bajar datos frescos para confirmar escritura
-  setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  };
+
+  const btn = document.querySelector('button[onclick="guardarIngreso()"]');
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  // IMPORTANTE: se espera la respuesta real de Supabase antes de decir "guardado".
+  // Si falla, NO se actualiza el estado local ni se muestra mensaje de éxito,
+  // y los valores ingresados se mantienen en pantalla para reintentar.
+  try {
+    await sbUpsertMany('ingresos', [registro]);
+    DB.ingresos.push(registro);
+    guardarDB('ingresos');
+    toast('✅ Ingreso registrado');
+    limpiarFormIngreso();
+    filtrarIngresos();
+    // Bajar datos frescos para confirmar escritura
+    setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  } catch (e) {
+    toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar ingreso.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
 }
 
 function limpiarFormIngreso() {
@@ -1955,7 +1969,7 @@ function filtrarIngresos() {
 // ══════════════════════════════════════════════════
 // SALIDAS
 // ══════════════════════════════════════════════════
-function guardarSalida() {
+async function guardarSalida() {
   const fecha = document.getElementById('sal-fecha').value;
   const local = document.getElementById('sal-local').value;
   const insumoId = document.getElementById('sal-insumo').value;
@@ -1969,20 +1983,33 @@ function guardarSalida() {
     toast('⚠️ Completa todos los campos obligatorios', true); return;
   }
 
-  DB.salidas.push({
+  const registro = {
     id: uid(), fecha, local,
     insumoId, unidad: ins ? ins.unidad : '',
     cantidad, responsable, motivo, obs
-  });
-  guardarDB('salidas');
-  // Sincronizar con Sheets
-  const record = DB.salidas[DB.salidas.length - 1];
-  gasPost({ accion: 'insertar', local, tabla: 'salidas', record });
-  toast('✅ Salida registrada');
-  limpiarFormSalida();
-  filtrarSalidas();
-  // Bajar datos frescos para confirmar escritura
-  setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  };
+
+  const btn = document.querySelector('button[onclick="guardarSalida()"]');
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  // IMPORTANTE: se espera la respuesta real de Supabase antes de decir "guardado".
+  // Si falla, NO se actualiza el estado local ni se muestra mensaje de éxito,
+  // y los valores ingresados se mantienen en pantalla para reintentar.
+  try {
+    await sbUpsertMany('salidas', [registro]);
+    DB.salidas.push(registro);
+    guardarDB('salidas');
+    toast('✅ Salida registrada');
+    limpiarFormSalida();
+    filtrarSalidas();
+    // Bajar datos frescos para confirmar escritura
+    setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  } catch (e) {
+    toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar salida.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
 }
 
 function limpiarFormSalida() {
@@ -2031,7 +2058,7 @@ function filtrarSalidas() {
 // ══════════════════════════════════════════════════
 // INVENTARIO SEMANAL
 // ══════════════════════════════════════════════════
-function guardarInventario() {
+async function guardarInventario() {
   const fecha = document.getElementById('inv-fecha').value;
   const local = document.getElementById('inv-local').value;
   const insumoId = document.getElementById('inv-insumo').value;
@@ -2044,20 +2071,34 @@ function guardarInventario() {
     toast('⚠️ Completa fecha, local, insumo, stock y responsable', true); return;
   }
 
-  DB.inventario.push({
+  const registro = {
     id: uid(), fecha, local,
     insumoId, unidad: ins ? ins.unidad : '',
     stock, responsable, obs
-  });
-  guardarDB('inventario');
-  const recInv = DB.inventario[DB.inventario.length - 1];
-  gasPost({ accion: 'insertar', local, tabla: 'inventario', record: recInv });
-  toast('✅ Conteo físico registrado');
-  ['inv-stock','inv-responsable','inv-obs'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('inv-insumo').value = '';
-  document.getElementById('inv-unidad').value = '';
-  filtrarInventario();
-  setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  };
+
+  const btn = document.querySelector('button[onclick="guardarInventario()"]');
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  // IMPORTANTE: se espera la respuesta real de Supabase antes de decir "guardado".
+  // Si falla, NO se actualiza el estado local ni se muestra mensaje de éxito,
+  // y los valores ingresados se mantienen en pantalla para reintentar.
+  try {
+    await sbUpsertMany('inventario', [registro]);
+    DB.inventario.push(registro);
+    guardarDB('inventario');
+    toast('✅ Conteo físico registrado');
+    ['inv-stock','inv-responsable','inv-obs'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('inv-insumo').value = '';
+    document.getElementById('inv-unidad').value = '';
+    filtrarInventario();
+    setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
+  } catch (e) {
+    toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar conteo.', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
 }
 
 function filtrarInventario() {
