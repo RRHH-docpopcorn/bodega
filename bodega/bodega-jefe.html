@@ -3106,13 +3106,60 @@ async function gasPost(payload) {
   }
 }
 
+function validarCatalogoInsumosRemoto(insumos) {
+  if (!Array.isArray(insumos)) {
+    return { valido: false, motivo: 'La respuesta remota no es un arreglo.' };
+  }
+  if (insumos.length === 0) {
+    return { valido: false, motivo: 'El catálogo remoto llegó vacío (0 insumos).' };
+  }
+
+  const idsVistos = new Set();
+  for (let i = 0; i < insumos.length; i++) {
+    const ins = insumos[i];
+    if (!ins || typeof ins !== 'object' || Array.isArray(ins)) {
+      return { valido: false, motivo: `Registro #${i} no es un objeto valido.` };
+    }
+
+    const id = ins.id;
+    const idValido = (typeof id === 'string' || typeof id === 'number') && String(id).trim() !== '';
+    if (!idValido) {
+      return { valido: false, motivo: `Registro #${i} tiene id vacío o inválido.` };
+    }
+
+    const nombre = ins.nombre;
+    const nombreValido = typeof nombre === 'string' && nombre.trim() !== '';
+    if (!nombreValido) {
+      return { valido: false, motivo: `Registro #${i} (id=${id}) tiene nombre vacío o inválido.` };
+    }
+
+    const idKey = String(id);
+    if (idsVistos.has(idKey)) {
+      return { valido: false, motivo: `Id duplicado en el catálogo remoto: ${idKey}.` };
+    }
+    idsVistos.add(idKey);
+  }
+
+  return { valido: true, motivo: '' };
+}
+
 async function bajarDatosDesdeSheets(local) {
   setSyncStatus('syncing');
+  let catalogoInsumosValido = true;
   try {
     const insumos = await sbSelect('insumos');
-    if (Array.isArray(insumos)) {
+    const validacionInsumos = validarCatalogoInsumosRemoto(insumos);
+    if (validacionInsumos.valido) {
+      // Fuente de verdad: Supabase. Reemplazo completo, nunca merge con
+      // el catalogo que ya estaba en DB.insumos / localStorage.
       DB.insumos = insumos;
       guardarDB('insumos');
+    } else {
+      // Catalogo remoto ausente/invalido: NO se toca DB.insumos ni
+      // localStorage. Se conserva el ultimo catalogo valido disponible.
+      catalogoInsumosValido = false;
+      console.warn('[insumos] catálogo remoto rechazado, se mantiene la última cache válida (' +
+        DB.insumos.length + ' insumos): ' + validacionInsumos.motivo);
     }
     for (const tabla of ['ingresos','salidas','inventario','inventario_local']) {
       const records = await sbSelect(tabla, local || null);
@@ -3121,7 +3168,11 @@ async function bajarDatosDesdeSheets(local) {
         guardarDB(tabla);
       }
     }
-    setSyncStatus('ok');
+    if (catalogoInsumosValido) {
+      setSyncStatus('ok');
+    } else {
+      setSyncStatus('error', '⚠️ Catálogo de insumos remoto inválido — usando cache local');
+    }
     await cargarTrabajadores();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
