@@ -3039,12 +3039,22 @@ function cleanRecord(r) {
 }
 
 async function sbFetch(url, options) {
+  const method = (options.method || '').toUpperCase();
+  let profileHeader;
+  if (method === 'GET' || method === 'HEAD') {
+    profileHeader = { 'Accept-Profile': 'public' };
+  } else if (method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') {
+    profileHeader = { 'Content-Profile': 'public' };
+  } else {
+    throw new Error('sbFetch: metodo desconocido "' + method + '", schema no especificado');
+  }
   const resp = await fetch(url, {
     ...options,
     headers: {
       'apikey': SB_KEY,
       'Authorization': 'Bearer ' + SB_KEY,
       'Content-Type': 'application/json',
+      ...profileHeader,
       ...(options.headers || {})
     }
   });
