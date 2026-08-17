@@ -3173,6 +3173,12 @@ async function bajarDatosDesdeSheets(local) {
     } else {
       setSyncStatus('error', '⚠️ Catálogo de insumos remoto inválido — usando cache local');
     }
+    // BUGFIX ocultar/restaurar: re-sincroniza el estado central de ocultos
+    // en cada auto-sync (mismo punto que Pajaritos/Plaza Oeste ya usaban).
+    // Antes de este fix, Jefe nunca releia stock_ocultos y dependia solo
+    // de su propio localStorage — por eso un insumo ocultado por Admin
+    // nunca se propagaba a este perfil.
+    await cargarOcultos();
     await cargarTrabajadores();
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);

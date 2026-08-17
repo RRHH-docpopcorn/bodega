@@ -2217,32 +2217,37 @@ function guardarBulk() {
 // ══════════════════════════════════════════════════
 // STOCK EN VIVO
 // ══════════════════════════════════════════════════
-async function guardarOcultos() {
-  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
-  try {
-    // Obtener ocultos actuales en Supabase
-    const existentes = await sbSelect('stock_ocultos');
-    const idsExistentes = Array.isArray(existentes) ? existentes.map(r => r.id) : [];
-    const idsActuales = [...DB.stockOcultos];
-    
-    // Borrar los que ya no están ocultos
-    const aBorrar = idsExistentes.filter(id => !idsActuales.includes(id));
-    for (const id of aBorrar) {
-      await sbDelete('stock_ocultos', encodeURIComponent(id));
-    }
-    
-    // Insertar los nuevos
-    if (idsActuales.length > 0) {
-      const records = idsActuales.map(key => {
-        const parts = key.split('|');
-        return { id: key, insumo_id: parts[0], local: parts[1] || '' };
-      });
-      await sbUpsertMany('stock_ocultos', records);
-    }
-    console.log('✅ Ocultos en Supabase:', idsActuales.length);
-  } catch(e) {
-    console.warn('Error guardando ocultos:', e.message);
+// BLOQUE OCULTAR/RESTAURAR — Supabase (stock_ocultos, schema public) es la
+// fuente de verdad; localStorage es solo cache de arranque. Admin es el
+// unico perfil que escribe aqui (Jefe/Pajaritos/Plaza Oeste solo leen via
+// cargarOcultos, ver bajarDatosDesdeSheets).
+//
+// guardarOcultosEnSupabase NO toca DB.stockOcultos ni el cache local: eso
+// es responsabilidad exclusiva de toggleOcultoStock, y solo debe pasar
+// DESPUES de que esta funcion confirme exito (awaited). Si algo falla, el
+// error se propaga (no se traga con un console.warn) para que quien llama
+// pueda avisar al usuario y NO asumir que el cambio quedo guardado.
+async function guardarOcultosEnSupabase(ocultosSet) {
+  // Obtener ocultos actuales en Supabase
+  const existentes = await sbSelect('stock_ocultos');
+  const idsExistentes = Array.isArray(existentes) ? existentes.map(r => r.id) : [];
+  const idsActuales = [...ocultosSet];
+
+  // Borrar los que ya no están ocultos
+  const aBorrar = idsExistentes.filter(id => !idsActuales.includes(id));
+  for (const id of aBorrar) {
+    await sbDelete('stock_ocultos', encodeURIComponent(id));
   }
+
+  // Insertar los nuevos
+  if (idsActuales.length > 0) {
+    const records = idsActuales.map(key => {
+      const parts = key.split('|');
+      return { id: key, insumo_id: parts[0], local: parts[1] || '' };
+    });
+    await sbUpsertMany('stock_ocultos', records);
+  }
+  console.log('✅ Ocultos en Supabase:', idsActuales.length);
 }
 
 async function cargarOcultos() {
@@ -2259,13 +2264,29 @@ async function cargarOcultos() {
   }
 }
 
-function toggleOcultoStock(insumoId, local) {
+// Unico perfil con este boton (Admin). Espera confirmacion REAL de Supabase
+// antes de tocar DB.stockOcultos/cache local: si Supabase falla, el usuario
+// ve un error explicito y el insumo queda exactamente como estaba (no se
+// asume exito).
+async function toggleOcultoStock(insumoId, local) {
   const key = `${insumoId}|${local}`;
-  if (DB.stockOcultos.has(key)) DB.stockOcultos.delete(key);
-  else DB.stockOcultos.add(key);
-  guardarOcultos();
+  const nuevoSet = new Set(DB.stockOcultos);
+  if (nuevoSet.has(key)) nuevoSet.delete(key); else nuevoSet.add(key);
+
+  try {
+    await guardarOcultosEnSupabase(nuevoSet);
+  } catch (e) {
+    toast('⚠️ No se pudo guardar en Supabase — el insumo sigue como estaba: ' + e.message, true);
+    return;
+  }
+
+  // Confirmado por Supabase (fuente de verdad): recien ahora se actualiza
+  // el estado en memoria y el cache local.
+  DB.stockOcultos = nuevoSet;
+  localStorage.setItem('docpopcorn_stockOcultos', JSON.stringify([...DB.stockOcultos]));
   renderStock();
   renderDashboard();
+  renderConfigInsumos();
 }
 
 function renderStock() {
@@ -3198,10 +3219,12 @@ function renderConfigInsumos() {
     if (!buscar || i.nombre.toLowerCase().includes(buscar)) {
       if (!localF || i.local === localF) {
         if (!mostrarOcultosConfig) {
-          // Ocultar si está oculto en todos sus locales
+          // Ocultar si está oculto en alguno de sus locales (basta con 1 clic
+          // en 🙈 para que la fila desaparezca de la vista general, incluso
+          // en insumos "ambos" donde solo se ocultó un local).
           const locals = i.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [i.local];
-          const todosOcultos = locals.every(l => DB.stockOcultos.has(`${i.id}|${l}`));
-          if (todosOcultos) return false;
+          const algunoOculto = locals.some(l => DB.stockOcultos.has(`${i.id}|${l}`));
+          if (algunoOculto) return false;
         }
         return true;
       }
@@ -3639,6 +3662,13 @@ async function bajarDatosDesdeSheets(local) {
     } else {
       setSyncStatus('error', '⚠️ Catálogo de insumos remoto inválido — usando cache local');
     }
+    // BUGFIX ocultar/restaurar: re-sincroniza el estado central de ocultos
+    // en cada auto-sync (mismo punto que Jefe/Pajaritos/Plaza Oeste ya
+    // usaban). Antes de este fix, Admin nunca releia stock_ocultos y
+    // dependia solo de su propio localStorage — por eso un insumo ocultado
+    // podia parecer que "reaparecia" (en realidad nunca se propagaba fuera
+    // del dispositivo que lo oculto).
+    await cargarOcultos();
     await cargarTrabajadores();
     if (!hayFoco) {
       renderDashboard(); renderStock(); renderConfigInsumos();
