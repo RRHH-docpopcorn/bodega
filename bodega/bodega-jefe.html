@@ -1585,35 +1585,115 @@ function noData(cols) {
 }
 
 // ══════════════════════════════════════════════════
+// ORDEN TEMPORAL DE EVENTOS (Fase 2) — criterio unico, tabla-agnostico
+// ══════════════════════════════════════════════════
+// compararRecenciaEvento decide cual de dos EVENTOS (un conteo de
+// inventario, un conteo de inventario_local, un ingreso o una salida —
+// cualquier registro con {fecha, created_at?, id}) es mas reciente. Es la
+// misma funcion para las 4 tablas: no hay un comparador por tabla.
+//
+// Antes de esto, calcularStockVivo/calcularStockLocal ordenaban solo por
+// `fecha` (un <input type="date">, sin hora) y tomaban invs[0]; y el
+// filtro de ingresos/salidas comparaba `new Date(r.fecha) >= anclaFecha`
+// -- tambien solo dia, sin hora. Caso real: un ingreso a las 10:00 y un
+// conteo fisico=0 a las 18:00 el mismo dia hacian que el ingreso se
+// volviera a sumar sobre el conteo, aunque el conteo ya lo tuviera
+// incorporado.
+//
+// Criterio, en este orden (schema real confirmado en Supabase, public:
+// inventario/ingresos/salidas tienen created_at timestamptz default
+// now(); inventario_local NO lo tiene):
+//   1) fecha (dia) mas reciente gana.
+//   2) Empate de fecha -> created_at mas reciente gana, si AMBOS
+//      registros lo tienen y es parseable. Es una columna real de
+//      Supabase (llega sola via sbSelect, que pide select=*); el cliente
+//      nunca la escribe ni la inventa.
+//   3) created_at falta en alguno de los dos (tipico: un registro recien
+//      creado en ESTA sesion, antes de su primer sync; o cualquier fila
+//      de inventario_local, que hoy no tiene esa columna en absoluto) ->
+//      fallback documentado por id. uid() = Date.now().toString(36) +
+//      azar: el prefijo temporal ya es monotonico con el orden real de
+//      creacion, asi que comparar los ids como string alcanza sin
+//      inventar ni enviar un timestamp propio a Supabase.
+// Nunca se usa la posicion del registro en el array (DB.inventario/
+// DB.inventario_local/DB.ingresos/DB.salidas) como criterio: ese orden
+// depende de push() local vs. lo que devuelva Supabase (sbSelect no tiene
+// order=) y no es una señal de negocio confiable.
+//
+// Limite conocido y aceptado: created_at mide cuando la fila se INSERTO
+// en Supabase, no necesariamente cuando el evento fisico ocurrio. Para el
+// flujo real de uso de hoy (todo se carga en vivo, ningun formulario
+// tiene campo de hora) orden de insercion = orden real en la practica.
+// Validado en staging (commits 8014abf, e2ea3ed) antes de portar aqui.
+function compararRecenciaEvento(a, b) {
+  const fa = new Date(a.fecha).getTime();
+  const fb = new Date(b.fecha).getTime();
+  if (fa !== fb) return fb - fa;
+
+  const ca = a.created_at ? new Date(a.created_at).getTime() : NaN;
+  const cb = b.created_at ? new Date(b.created_at).getTime() : NaN;
+  const caValido = !isNaN(ca);
+  const cbValido = !isNaN(cb);
+  if (caValido && cbValido && ca !== cb) return cb - ca;
+  if (caValido && !cbValido) return -1;
+  if (!caValido && cbValido) return 1;
+
+  // Fallback documentado (ningun created_at utilizable, o coinciden): id.
+  // Es el UNICO criterio disponible hoy para inventario_local (no tiene
+  // created_at en el schema, ver confirmacion de arriba) y para
+  // cualquier registro legacy/recien creado de las otras 3 tablas.
+  if (a.id > b.id) return -1;
+  if (a.id < b.id) return 1;
+  return 0;
+}
+
+// Elige, entre varios conteos del mismo insumo+local, cual es el vigente
+// (el ancla que calcularStockVivo/calcularStockLocal deben usar).
+function seleccionarUltimoInventario(registros) {
+  if (!registros || registros.length === 0) return null;
+  return [...registros].sort(compararRecenciaEvento)[0];
+}
+
+// ¿El evento (ingreso/salida) ocurrio en el mismo instante o despues que
+// la referencia (el registro ancla)? Usa el mismo criterio de 3 niveles,
+// asi que un ingreso/salida solo se considera "posterior al ancla" si
+// realmente lo es segun fecha -> created_at -> id, no solo por compartir
+// el dia calendario.
+function esEventoPosteriorOIgual(evento, referencia) {
+  return compararRecenciaEvento(evento, referencia) <= 0;
+}
+
+// ══════════════════════════════════════════════════
 // STOCK EN VIVO — CÁLCULO PRINCIPAL
 // ══════════════════════════════════════════════════
 function calcularStockLocal(insumoId, local) {
   const invs = (DB.inventario_local || [])
-    .filter(r => r.insumoId === insumoId && r.local === local)
-    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-  if (invs.length === 0) return 0;
-  return Number(invs[0].stock);
+    .filter(r => r.insumoId === insumoId && r.local === local);
+  const ancla = seleccionarUltimoInventario(invs);
+  if (!ancla) return 0;
+  return Number(ancla.stock);
 }
 
 function calcularStockVivo(insumoId, local) {
   // 1. Último inventario físico de BODEGA para este insumo y local
   const invs = DB.inventario
-    .filter(r => r.insumoId === insumoId && r.local === local)
-    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    .filter(r => r.insumoId === insumoId && r.local === local);
 
-  if (invs.length === 0) return null; // sin ancla
-  const ancla = invs[0];
-  const anclaFecha = new Date(ancla.fecha);
+  const ancla = seleccionarUltimoInventario(invs);
+  if (!ancla) return null; // sin ancla
   const anclaStock = Number(ancla.stock);
 
-  // 2. Ingresos después del ancla
+  // 2. Ingresos posteriores (o simultaneos) al ancla. Ya NO se compara
+  // solo `fecha` (dia): un ingreso del mismo dia pero ANTERIOR al conteo
+  // fisico (por created_at, o por id si created_at falta) no se vuelve a
+  // sumar, porque el conteo ya lo tenia incorporado.
   const totalIngresos = DB.ingresos
-    .filter(r => r.insumoId === insumoId && r.local === local && new Date(r.fecha) >= anclaFecha)
+    .filter(r => r.insumoId === insumoId && r.local === local && esEventoPosteriorOIgual(r, ancla))
     .reduce((s, r) => s + Number(r.cantidad), 0);
 
-  // 3. Salidas después del ancla
+  // 3. Salidas posteriores (o simultaneas) al ancla — mismo criterio.
   const totalSalidas = DB.salidas
-    .filter(r => r.insumoId === insumoId && r.local === local && new Date(r.fecha) >= anclaFecha)
+    .filter(r => r.insumoId === insumoId && r.local === local && esEventoPosteriorOIgual(r, ancla))
     .reduce((s, r) => s + Number(r.cantidad), 0);
 
   // 4. Stock en local
