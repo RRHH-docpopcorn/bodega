@@ -3651,8 +3651,47 @@ async function sbFetch(url, options) {
   return ct.includes('json') ? resp.json() : { ok: true };
 }
 
+// HARDENING sbSelect: orden deterministico por tabla. Antes, sbSelect()
+// pedia ?select=*&limit=1000 sin order= -- PostgREST no garantiza que 1000
+// filas devuelve al cruzar ese limite, ni en que orden, y
+// bajarDatosDesdeSheets() reemplaza DB[tabla] entero con lo que llegue
+// (sin merge). Eso puede excluir de forma silenciosa filas relevantes
+// (p.ej. el conteo de inventario mas reciente de un insumo) sin ningun
+// error visible. limit=1000 NO se toca en este cambio (ver analisis de
+// arquitectura previo); esto solo hace deterministico el corte existente.
+//
+// Orden elegido por tabla, confirmado contra el schema real (staging y
+// public):
+//   ingresos/salidas/inventario: fecha y created_at existen -> orden por
+//     recencia real (fecha desc, created_at desc como desempate de mismo
+//     dia -- mismo criterio que compararRecenciaEvento, sin reemplazarlo).
+//   inventario_local: created_at NO existe en ningun schema -> solo
+//     fecha.desc.
+//   insumos/stock_ocultos: created_at existe, pero ambas tablas se
+//     escriben via sbUpsertMany() con lotes de mas de un registro en una
+//     sola sentencia (CSV de insumos; guardarOcultosEnSupabase siempre
+//     reenvia el set COMPLETO de ocultos vigentes en cada toggle, no solo
+//     el que cambio). Postgres resuelve now() una sola vez POR
+//     TRANSACCION, no por fila, asi que un lote asi puede insertar N
+//     filas con el MISMO created_at exacto -- order=created_at.desc por
+//     si solo no rompe ese empate. Se usa id.asc en su lugar: es la unica
+//     columna con garantia real de valores unicos (primary key) en ambas
+//     tablas, da un orden total sin ambiguedad. No se necesita "mas
+//     reciente" en estas dos tablas (catalogo/estado de config, no
+//     historial de eventos) -- lo pedido es determinismo, no recencia.
+const ORDEN_SB_SELECT = {
+  ingresos: 'fecha.desc,created_at.desc',
+  salidas: 'fecha.desc,created_at.desc',
+  inventario: 'fecha.desc,created_at.desc',
+  inventario_local: 'fecha.desc',
+  insumos: 'id.asc',
+  stock_ocultos: 'id.asc'
+};
+
 async function sbSelect(tabla, local) {
   let url = `${SB_URL}/rest/v1/${tabla}?select=*&limit=1000`;
+  const orden = ORDEN_SB_SELECT[tabla];
+  if (orden) url += `&order=${orden}`;
   if (local) url += `&local=eq.${encodeURIComponent(local)}`;
   return sbFetch(url, { method: 'GET' });
 }
