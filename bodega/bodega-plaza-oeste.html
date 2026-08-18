@@ -1885,10 +1885,17 @@ async function guardarIngreso() {
     await sbUpsertMany('ingresos', [registro]);
     DB.ingresos.push(registro);
     guardarDB('ingresos');
+    // Render inmediato: DB ya tiene el ingreso confirmado por Supabase, no
+    // hay razon para esperar al setTimeout/auto-sync de abajo para que
+    // Dashboard/Stock lo reflejen. Incondicional, sin pasar por hayFoco
+    // (ese guard solo aplica al re-sync de bajarDatosDesdeSheets).
+    renderDashboard();
+    renderStock();
     toast('✅ Ingreso registrado');
     limpiarFormIngreso();
     filtrarIngresos();
-    // Bajar datos frescos para confirmar escritura
+    // Bajar datos frescos para confirmar escritura (reconciliacion con
+    // Supabase; el render de arriba ya mostro el estado correcto).
     setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
   } catch (e) {
     toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar ingreso.', true);
@@ -1977,10 +1984,14 @@ async function guardarSalida() {
     await sbUpsertMany('salidas', [registro]);
     DB.salidas.push(registro);
     guardarDB('salidas');
+    // Render inmediato (ver nota equivalente en guardarIngreso).
+    renderDashboard();
+    renderStock();
     toast('✅ Salida registrada');
     limpiarFormSalida();
     filtrarSalidas();
-    // Bajar datos frescos para confirmar escritura
+    // Bajar datos frescos para confirmar escritura (reconciliacion con
+    // Supabase; el render de arriba ya mostro el estado correcto).
     setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
   } catch (e) {
     toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar salida.', true);
@@ -2121,6 +2132,11 @@ async function guardarConteoMasivo(prefix, tabla) {
     DB[tabla] = DB[tabla] || [];
     DB[tabla].push(...records);
     guardarDB(tabla);
+    // Render inmediato: un conteo masivo (bodega o local) puede redefinir
+    // el ancla de calcularStockVivo/calcularStockLocal para varios
+    // insumos a la vez (ver nota equivalente en guardarIngreso).
+    renderDashboard();
+    renderStock();
     document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
     if (tabla === 'inventario') filtrarInventario();
     else filtrarInventarioLocal();

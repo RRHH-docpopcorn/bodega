@@ -1988,10 +1988,17 @@ async function guardarIngreso() {
     await sbUpsertMany('ingresos', [registro]);
     DB.ingresos.push(registro);
     guardarDB('ingresos');
+    // Render inmediato: DB ya tiene el ingreso confirmado por Supabase, no
+    // hay razon para esperar al setTimeout/auto-sync de abajo para que
+    // Dashboard/Stock lo reflejen. Incondicional, sin pasar por hayFoco
+    // (ese guard solo aplica al re-sync de bajarDatosDesdeSheets).
+    renderDashboard();
+    renderStock();
     toast('✅ Ingreso registrado');
     limpiarFormIngreso();
     filtrarIngresos();
-    // Bajar datos frescos para confirmar escritura
+    // Bajar datos frescos para confirmar escritura (reconciliacion con
+    // Supabase; el render de arriba ya mostro el estado correcto).
     setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
   } catch (e) {
     toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar ingreso.', true);
@@ -2080,10 +2087,14 @@ async function guardarSalida() {
     await sbUpsertMany('salidas', [registro]);
     DB.salidas.push(registro);
     guardarDB('salidas');
+    // Render inmediato (ver nota equivalente en guardarIngreso).
+    renderDashboard();
+    renderStock();
     toast('✅ Salida registrada');
     limpiarFormSalida();
     filtrarSalidas();
-    // Bajar datos frescos para confirmar escritura
+    // Bajar datos frescos para confirmar escritura (reconciliacion con
+    // Supabase; el render de arriba ya mostro el estado correcto).
     setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 2000);
   } catch (e) {
     toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en el formulario, vuelve a presionar Registrar salida.', true);
@@ -2168,6 +2179,10 @@ async function guardarInventario() {
     await sbUpsertMany('inventario', [registro]);
     DB.inventario.push(registro);
     guardarDB('inventario');
+    // Render inmediato: un conteo fisico puede redefinir el ancla de
+    // calcularStockVivo (ver nota equivalente en guardarIngreso).
+    renderDashboard();
+    renderStock();
     toast('✅ Conteo físico registrado');
     ['inv-stock','inv-responsable','inv-obs'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('inv-insumo').value = '';
@@ -2289,6 +2304,9 @@ function guardarBulk() {
     }
   });
   guardarDB('inventario');
+  // Render inmediato (ver nota equivalente en guardarIngreso).
+  renderDashboard();
+  renderStock();
   cerrarModal('modal-bulk');
   toast(`✅ ${count} conteos guardados`);
   filtrarInventario();
