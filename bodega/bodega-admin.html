@@ -674,6 +674,7 @@
     <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
     <button class="tab-btn" onclick="switchTab('ingresos')">📥 Ingresos</button>
     <button class="tab-btn" onclick="switchTab('salidas')">📤 Salidas</button>
+    <button class="tab-btn" onclick="switchTab('inventario')">📋 Inventario Bodega</button>
     <button class="tab-btn" onclick="switchTab('cuadre')">🔢 Cuadre de stock</button>
     <button class="tab-btn" onclick="switchTab('planificador')">🛒 Planificador</button>
     <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
@@ -1410,6 +1411,19 @@
   </div>
 </div>
 
+<!-- MODAL CHALLENGE (Inventario Bodega -- calculo on-the-fly, sin tabla
+     nueva. Ver calcularChallengeExacto()/renderChallengeHTML() abajo.
+     Portado desde staging (Fase 2.1-2.4, validado, commit 199c057). -->
+<div class="modal-overlay" id="modal-challenge">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-title">
+      🔍 Challenge de inventario
+      <button class="btn-icon" onclick="cerrarModal('modal-challenge')">✕</button>
+    </div>
+    <div id="challenge-content"></div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════
 // TRABAJADORES (desde Airtable - actualizados 2026-07)
@@ -1509,7 +1523,7 @@ const PERFILES = {
     nombre: 'Admin',
     icon: '⚙️',
     local: '',
-    tabs: ['dashboard','ingresos','salidas','cuadre','planificador','config'],
+    tabs: ['dashboard','ingresos','salidas','inventario','cuadre','planificador','config'],
     defaultTab: 'dashboard',
     localFijo: false,
   },
@@ -1818,6 +1832,499 @@ function calcularStockVivo(insumoId, local) {
     stockLocal,
     stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal
   };
+}
+
+// ══════════════════════════════════════════════════
+// CHALLENGE — SOLO Inventario Bodega (portado desde staging, validado en
+// commit 199c057 de staging/hardening-insumos-cache: Fase 2.1 UI, Fase 2.2
+// lectura exacta/paginada, Fase 2.3 cableado a UI, Fase 2.4 fix de render)
+// ══════════════════════════════════════════════════
+// Reconcilia UN conteo fisico de inventario (bodega) contra su predecesor
+// inmediato: anterior + ingresos - salidas del periodo = teorico;
+// diferencia = fisico actual - teorico. Reutiliza la semantica temporal ya
+// validada (compararRecenciaEvento/seleccionarUltimoInventario/
+// esEventoPosteriorOIgual) sin reimplementar ninguna comparacion por
+// fecha. Calculo on-the-fly, sin tabla nueva: inventario/ingresos/salidas
+// ya son la fuente de verdad y el conjunto relevante (2 conteos vecinos +
+// movimientos entre ellos, para un insumo+local) es chico.
+//
+// Periodo considerado: [conteoAnterior, conteoActual) -- inclusivo abajo,
+// exclusivo arriba. Un movimiento con la MISMA fecha/created_at/id-tie que
+// el ancla anterior cuenta; uno empatado con el conteo actual NO (ver
+// esEventoPosteriorOIgual).
+//
+// calcularChallenge() (cache, DB.inventario/DB.ingresos/DB.salidas con
+// limit=1000 SIN filtrar por insumo/local) se mantiene en el codigo como
+// referencia congelada -- NUNCA es lo que la UI usa en produccion. El
+// Challenge productivo usa exclusivamente calcularChallengeExacto() (mas
+// abajo): lectura filtrada por insumoId+local y paginada a completitud,
+// sin depender de limit=1000 global para el resultado mostrado. Completo
+// o error -- nunca parcial.
+function calcularChallenge(insumoId, local, conteoActualId) {
+  const conteos = DB.inventario.filter(r => r.insumoId === insumoId && r.local === local);
+  const ordenados = [...conteos].sort(compararRecenciaEvento); // mas reciente primero
+
+  const conteoActual = ordenados.find(r => r.id === conteoActualId);
+  if (!conteoActual) return null;
+
+  const idx = ordenados.indexOf(conteoActual);
+  const conteoAnterior = ordenados[idx + 1] || null; // vecino inmediato en el tiempo
+
+  const datosPotencialmenteIncompletos =
+    DB.inventario.length >= 1000 || DB.ingresos.length >= 1000 || DB.salidas.length >= 1000;
+
+  if (!conteoAnterior) {
+    return {
+      conteoAnterior: null, conteoActual,
+      ingresosPeriodo: [], salidasPeriodo: [],
+      stockTeorico: null, stockFisico: Number(conteoActual.stock),
+      diferencia: null, desviacionPct: null,
+      movimientosConsiderados: [],
+      sinConteoAnterior: true,
+      datosPotencialmenteIncompletos
+    };
+  }
+
+  // Periodo [conteoAnterior, conteoActual): posterior-o-igual al ancla
+  // anterior, y estrictamente anterior al conteo actual.
+  const enPeriodo = r => esEventoPosteriorOIgual(r, conteoAnterior) && !esEventoPosteriorOIgual(r, conteoActual);
+
+  const ingresosPeriodo = DB.ingresos.filter(r => r.insumoId === insumoId && r.local === local && enPeriodo(r));
+  const salidasPeriodo  = DB.salidas.filter(r => r.insumoId === insumoId && r.local === local && enPeriodo(r));
+
+  const totalIngresos = ingresosPeriodo.reduce((s, r) => s + Number(r.cantidad), 0);
+  const totalSalidas  = salidasPeriodo.reduce((s, r) => s + Number(r.cantidad), 0);
+
+  const stockTeorico = Number(conteoAnterior.stock) + totalIngresos - totalSalidas;
+  const stockFisico  = Number(conteoActual.stock);
+  const diferencia   = stockFisico - stockTeorico;
+  // stockTeorico=0: 0/0 -> 0 (perfecto, sin base); si no, no hay division
+  // valida -> null (NUNCA Infinity/NaN). La UI debe mostrar "No calculable".
+  const desviacionPct = stockTeorico !== 0
+    ? (diferencia / stockTeorico) * 100
+    : (diferencia === 0 ? 0 : null);
+
+  return {
+    conteoAnterior, conteoActual, ingresosPeriodo, salidasPeriodo,
+    stockTeorico, stockFisico, diferencia, desviacionPct,
+    movimientosConsiderados: [
+      ...ingresosPeriodo.map(r => ({ tipo: 'ingreso', ...r })),
+      ...salidasPeriodo.map(r => ({ tipo: 'salida', ...r }))
+    ],
+    sinConteoAnterior: false,
+    datosPotencialmenteIncompletos
+  };
+}
+
+// Lectura EXACTA (no cache): filtra en el servidor por insumoId+local
+// (identidad exacta, no cache global) -- el conjunto de conteos/
+// movimientos de UN insumo en UN local es chico por naturaleza, sin
+// importar cuanto crezca la tabla. Pagina hasta agotar los datos de
+// verdad (pagina corta = fin), nunca asume completitud por un numero
+// fijo. Usa fecha=gte/lte SOLO como pre-filtro inclusivo de rendimiento
+// para ingresos/salidas -- nunca como la decision final del periodo.
+// Reutiliza, SIN reimplementar, el mismo comparador ya validado
+// (compararRecenciaEvento / esEventoPosteriorOIgual) para decidir el
+// predecesor inmediato y el limite exacto [conteoAnterior, conteoActual).
+// Un filtro PostgREST no puede expresar limpiamente esa comparacion de 3
+// niveles (fecha -> created_at si ambos son parseables -> id como string
+// con el caso especial de created_at ausente) sin reimplementarla en
+// sintaxis de filtros -- exactamente el tipo de logica que este proyecto
+// ya tuvo que corregir varias veces (ver historial de compararRecenciaEvento
+// mas arriba). Por eso PostgREST se usa solo para acotar/paginar, y la
+// decision fina se queda en JS.
+//
+// Si cualquier pagina falla o no devuelve un array, TODO el calculo aborta
+// (throw) -- no existe un resultado "parcial pero mostrable": no se usa
+// datosPotencialmenteIncompletos aqui porque ese flag era una senal suave
+// sobre un cache heuristico; este path tiene una garantia positiva de
+// completitud (pagina corta = fin) y por eso, ante cualquier falla, debe
+// fallar entero en vez de estimar.
+
+const CHALLENGE_PAGE_SIZE = 200;
+
+// Orden estable para paginacion determinística: fecha.desc,created_at.desc
+// (mismo criterio de recencia que ORDEN_SB_SELECT.inventario/ingresos/
+// salidas) + id.desc como tercer desempate. ORDEN_SB_SELECT NO tiene ese
+// tercer termino porque para el cache global alcanza con que el CORTE de
+// limit=1000 sea deterministico (el orden final real lo decide JS via
+// compararRecenciaEvento de todos modos). Aqui, en cambio, el orden SQL
+// maneja la paginacion misma (limit/offset entre requests separados): si
+// dos filas empatan en fecha Y created_at (legacy sin created_at, o un
+// lote insertado en la misma transaccion -- ver comentario de
+// ORDEN_SB_SELECT mas abajo) y caen a caballo de un corte de pagina,
+// Postgres no garantiza de que lado queda cada una entre dos requests
+// distintos -- riesgo real de fila duplicada u omitida. id es la unica
+// columna con garantia de valor unico (mismo argumento que
+// ORDEN_SB_SELECT.insumos/stock_ocultos), asi que agregarla como tercer
+// termino hace la paginacion SQL deterministica sin cambiar ninguna
+// decision de negocio (esa sigue siendo exclusivamente de
+// compararRecenciaEvento en JS).
+const ORDEN_CHALLENGE_EXACTO = 'fecha.desc,created_at.desc,id.desc';
+
+function construirURLChallengePaginado(tabla, { filtrosEq, filtrosRango, orden, limit, offset }) {
+  let url = `${SB_URL}/rest/v1/${tabla}?select=*`;
+  Object.entries(filtrosEq || {}).forEach(([col, val]) => {
+    url += `&${col}=eq.${encodeURIComponent(val)}`;
+  });
+  (filtrosRango || []).forEach(({ col, op, val }) => {
+    url += `&${col}=${op}.${encodeURIComponent(val)}`;
+  });
+  if (orden) url += `&order=${orden}`;
+  url += `&limit=${limit}&offset=${offset}`;
+  return url;
+}
+
+// Pagina una lectura PostgREST filtrada+ordenada hasta agotar los datos.
+// Usa sbFetch existente (nunca fetch directo): hereda el pin
+// Accept-Profile/Content-Profile: public y el manejo de error ya
+// establecido en este archivo -- ningun request nuevo, ningun schema
+// nuevo, solo mas filtros/paginacion sobre el mismo choke point HTTP.
+//
+// filtrosEq: { columna: valor, ... } -- AND de igualdades exactas.
+// filtrosRango: [{ col, op: 'gte'|'lte'|'gt'|'lt', val }, ...] -- AND de
+//   comparaciones; puede repetir la misma columna (p.ej. fecha gte + fecha
+//   lte), sintaxis PostgREST estandar (cada query param se combina con AND
+//   sin importar si el nombre de columna se repite).
+// orden: string 'col.dir,col2.dir,...' -- debe ser un orden ESTABLE (ver
+//   ORDEN_CHALLENGE_EXACTO) para que la paginacion no duplique/omita filas.
+//
+// Condicion de fin: una pagina con MENOS filas que pageSize es la unica
+// senal de "no hay mas datos" -- nunca se asume el fin por alcanzar un
+// numero fijo de filas acumuladas.
+// Condicion de falla: cualquier pagina que no sea un array (sbFetch ya
+// lanza excepcion en HTTP no-2xx; este chequeo cubre ademas una respuesta
+// con forma inesperada) aborta TODA la lectura via throw -- el llamador no
+// recibe filas parciales silenciosamente.
+async function sbSelectPaginado(tabla, { filtrosEq, filtrosRango, orden, pageSize } = {}) {
+  const size = pageSize || CHALLENGE_PAGE_SIZE;
+  const filas = [];
+  let offset = 0;
+  for (;;) {
+    const url = construirURLChallengePaginado(tabla, { filtrosEq, filtrosRango, orden, limit: size, offset });
+    const pagina = await sbFetch(url, { method: 'GET' });
+    if (!Array.isArray(pagina)) {
+      throw new Error(`sbSelectPaginado: pagina invalida (no es array) en ${tabla}, offset=${offset}`);
+    }
+    filas.push(...pagina);
+    if (pagina.length < size) break; // pagina corta = fin de datos, señal definitiva
+    offset += size;
+  }
+  return filas;
+}
+
+// Todos los conteos de inventario (bodega) de UN insumo en UN local,
+// completos (paginados a agotamiento). pageSize es opcional (default
+// CHALLENGE_PAGE_SIZE); se expone para poder forzar paginacion real en
+// pruebas sin tocar el default de produccion.
+async function obtenerConteosInsumoLocal(insumoId, local, pageSize) {
+  return sbSelectPaginado('inventario', {
+    filtrosEq: { insumoId, local },
+    orden: ORDEN_CHALLENGE_EXACTO,
+    pageSize
+  });
+}
+
+// Ingresos O salidas (nunca otra tabla) de UN insumo en UN local, con un
+// PRE-FILTRO de fecha gte/lte -- inclusivo en ambos extremos, nunca gt/lt
+// estrictos, para que jamas pueda excluir por error una fila borde. No es
+// la decision final del periodo (esa la aplica calcularChallengeExacto con
+// esEventoPosteriorOIgual sobre el resultado de esta funcion); es solo una
+// acotacion de rendimiento para no paginar movimientos fuera de rango.
+async function obtenerMovimientosPeriodo(tabla, insumoId, local, fechaDesde, fechaHasta, pageSize) {
+  if (tabla !== 'ingresos' && tabla !== 'salidas') {
+    throw new Error(`obtenerMovimientosPeriodo: tabla no soportada '${tabla}' (solo ingresos/salidas).`);
+  }
+  return sbSelectPaginado(tabla, {
+    filtrosEq: { insumoId, local },
+    filtrosRango: [
+      { col: 'fecha', op: 'gte', val: fechaDesde },
+      { col: 'fecha', op: 'lte', val: fechaHasta }
+    ],
+    orden: ORDEN_CHALLENGE_EXACTO,
+    pageSize
+  });
+}
+
+// Aritmetica final del Challenge (teorico/diferencia/desviacion +
+// movimientosConsiderados), extraida como funcion pura y compartida para
+// que calcularChallengeExacto NO reimplemente esta formula por segunda vez
+// -- ya existe una copia inline en calcularChallenge() (arriba), dejada
+// intacta a proposito como referencia congelada (nunca usada por la UI).
+function construirResultadoChallenge(conteoAnterior, conteoActual, ingresosPeriodo, salidasPeriodo) {
+  const totalIngresos = ingresosPeriodo.reduce((s, r) => s + Number(r.cantidad), 0);
+  const totalSalidas  = salidasPeriodo.reduce((s, r) => s + Number(r.cantidad), 0);
+
+  const stockTeorico = Number(conteoAnterior.stock) + totalIngresos - totalSalidas;
+  const stockFisico  = Number(conteoActual.stock);
+  const diferencia   = stockFisico - stockTeorico;
+  // stockTeorico=0: 0/0 -> 0 (perfecto, sin base); si no, no hay division
+  // valida -> null (NUNCA Infinity/NaN). La UI debe mostrar "No calculable".
+  const desviacionPct = stockTeorico !== 0
+    ? (diferencia / stockTeorico) * 100
+    : (diferencia === 0 ? 0 : null);
+
+  return {
+    conteoAnterior, conteoActual, ingresosPeriodo, salidasPeriodo,
+    stockTeorico, stockFisico, diferencia, desviacionPct,
+    movimientosConsiderados: [
+      ...ingresosPeriodo.map(r => ({ tipo: 'ingreso', ...r })),
+      ...salidasPeriodo.map(r => ({ tipo: 'salida', ...r }))
+    ],
+    sinConteoAnterior: false
+  };
+}
+
+// Version exacta de calcularChallenge(): mismo shape de retorno (salvo
+// datosPotencialmenteIncompletos, que este path no usa -- completo o
+// error, nunca heuristica), pero:
+//   - lee inventario/ingresos/salidas filtrados por insumoId+local y
+//     paginados a completitud (no DB.* cacheado, no limit=1000 global);
+//   - reutiliza compararRecenciaEvento/esEventoPosteriorOIgual TAL CUAL
+//     (mismas funciones, cero reimplementacion) para elegir el predecesor
+//     inmediato y aplicar el limite exacto del periodo.
+// Esta es la UNICA funcion que abrirChallenge()/ejecutarChallenge() llaman
+// para calcular el resultado -- calcularChallenge() (cache) nunca se usa
+// desde la UI en produccion.
+// async: hace lecturas de red. Si cualquier pagina falla, la excepcion de
+// sbSelectPaginado se propaga sin capturar -- el llamador debe tratar el
+// reject como "no se pudo verificar", nunca mostrar un resultado parcial.
+async function calcularChallengeExacto(insumoId, local, conteoActualId, pageSize) {
+  const conteos = await obtenerConteosInsumoLocal(insumoId, local, pageSize);
+  const ordenados = [...conteos].sort(compararRecenciaEvento); // mas reciente primero
+
+  const conteoActual = ordenados.find(r => r.id === conteoActualId);
+  if (!conteoActual) return null;
+
+  const idx = ordenados.indexOf(conteoActual);
+  const conteoAnterior = ordenados[idx + 1] || null; // vecino inmediato en el tiempo
+
+  if (!conteoAnterior) {
+    return {
+      conteoAnterior: null, conteoActual,
+      ingresosPeriodo: [], salidasPeriodo: [],
+      stockTeorico: null, stockFisico: Number(conteoActual.stock),
+      diferencia: null, desviacionPct: null,
+      movimientosConsiderados: [],
+      sinConteoAnterior: true
+    };
+  }
+
+  // Pre-filtro inclusivo [conteoAnterior.fecha, conteoActual.fecha]: trae
+  // un superconjunto seguro de candidatos (nunca puede excluir una fila
+  // borde real), acotado por rango de fecha en el servidor en vez de
+  // paginar TODOS los movimientos del insumo+local sin limite de fecha.
+  const [ingresosCandidatos, salidasCandidatos] = await Promise.all([
+    obtenerMovimientosPeriodo('ingresos', insumoId, local, conteoAnterior.fecha, conteoActual.fecha, pageSize),
+    obtenerMovimientosPeriodo('salidas', insumoId, local, conteoAnterior.fecha, conteoActual.fecha, pageSize)
+  ]);
+
+  // Decision EXACTA del periodo [conteoAnterior, conteoActual): la misma
+  // expresion, con las mismas dos funciones ya validadas, que usa
+  // calcularChallenge() arriba -- ninguna comparacion de fecha nueva.
+  const enPeriodo = r => esEventoPosteriorOIgual(r, conteoAnterior) && !esEventoPosteriorOIgual(r, conteoActual);
+  const ingresosPeriodo = ingresosCandidatos.filter(enPeriodo);
+  const salidasPeriodo  = salidasCandidatos.filter(enPeriodo);
+
+  return construirResultadoChallenge(conteoAnterior, conteoActual, ingresosPeriodo, salidasPeriodo);
+}
+
+// "Fecha/hora efectiva si puede reconstruirse": created_at es la unica
+// columna con precision de hora real (fecha es <input type="date">, sin
+// hora). Si el registro no tiene created_at (legacy o recien creado antes
+// del primer sync), se muestra solo la fecha -- sin inventar una hora.
+function formatearFechaHoraChallenge(registro) {
+  if (!registro) return '—';
+  if (registro.created_at) {
+    const d = new Date(registro.created_at);
+    if (!isNaN(d.getTime())) {
+      return `${registro.fecha} · ${d.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+  }
+  return registro.fecha;
+}
+
+function formatearDiferenciaChallenge(diferencia, unidad) {
+  if (diferencia === null) return '<span style="color:var(--text-dim)">—</span>';
+  const signo = diferencia > 0 ? '+' : '';
+  const color = diferencia === 0 ? 'var(--text-muted)' : (diferencia < 0 ? 'var(--red)' : 'var(--green)');
+  return `<span style="color:${color};font-weight:700;">${signo}${fmtNum(diferencia, unidad)}</span>`;
+}
+
+function formatearDesviacionChallenge(pct) {
+  if (pct === null) return '<span style="color:var(--text-dim)">No calculable</span>';
+  const signo = pct > 0 ? '+' : '';
+  const color = pct === 0 ? 'var(--text-muted)' : (pct < 0 ? 'var(--red)' : 'var(--green)');
+  return `<span style="color:${color};font-weight:700;">${signo}${pct.toFixed(2)}%</span>`;
+}
+
+function filasMovimientosChallenge(movimientos) {
+  if (!movimientos || movimientos.length === 0) {
+    return '<tr><td colspan="5" class="no-data">Sin movimientos en este período</td></tr>';
+  }
+  return [...movimientos]
+    .sort(compararRecenciaEvento) // mismo criterio ya validado, mas reciente primero
+    .map(m => {
+      const esIngreso = m.tipo === 'ingreso';
+      const motivoObs = esIngreso ? (m.obs || '—') : (m.motivo || m.obs || '—');
+      return `<tr>
+        <td>${esIngreso ? '📥 Ingreso' : '📤 Salida'}</td>
+        <td>${formatearFechaHoraChallenge(m)}</td>
+        <td style="text-align:right;"><b>${esIngreso ? '+' : '-'}${m.cantidad}</b></td>
+        <td>${m.responsable || '—'}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;">${motivoObs}</td>
+      </tr>`;
+    }).join('');
+}
+
+function renderChallengeHTML(insumoId, local, r) {
+  const ins = getInsumo(insumoId);
+  const nombreInsumo = ins ? ins.nombre : insumoId;
+  const unidad = ins ? ins.unidad : '';
+
+  const advertencia = r.datosPotencialmenteIncompletos
+    ? `<div class="alert-strip amber" style="margin-bottom:12px;">⚠️ Datos potencialmente incompletos: el historial cargado alcanzó el límite de lectura. Este Challenge no debe considerarse definitivo.</div>`
+    : '';
+
+  const cabecera = `
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-title">${nombreInsumo}</div>
+      <div style="color:var(--text-muted);font-size:13px;">${chipLocal(local)}</div>
+    </div>`;
+
+  if (r.sinConteoAnterior) {
+    return `
+      ${advertencia}
+      ${cabecera}
+      <div class="tip">Primer conteo — aún no existe base para Challenge.</div>
+      <div style="margin-top:12px;font-size:14px;">
+        <b>Conteo físico actual:</b> ${fmtNum(r.stockFisico, unidad)}
+        · ${formatearFechaHoraChallenge(r.conteoActual)} · ${r.conteoActual.responsable || '—'}
+      </div>`;
+  }
+
+  return `
+    ${advertencia}
+    ${cabecera}
+    <div class="form-grid cols2" style="margin-bottom:12px;">
+      <div class="card">
+        <div class="card-title" style="font-size:13px;">Conteo anterior</div>
+        <div>${formatearFechaHoraChallenge(r.conteoAnterior)}</div>
+        <div><b>${fmtNum(Number(r.conteoAnterior.stock), unidad)}</b></div>
+        <div style="color:var(--text-muted);font-size:12px;">${r.conteoAnterior.responsable || '—'}</div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="font-size:13px;">Conteo actual</div>
+        <div>${formatearFechaHoraChallenge(r.conteoActual)}</div>
+        <div><b>${fmtNum(r.stockFisico, unidad)}</b></div>
+        <div style="color:var(--text-muted);font-size:12px;">${r.conteoActual.responsable || '—'}</div>
+      </div>
+    </div>
+
+    <div class="form-grid cols2" style="margin-bottom:12px;font-size:14px;">
+      <div>Ingresos del período: <b style="color:var(--green);">+${fmtNum(r.ingresosPeriodo.reduce((s,x)=>s+Number(x.cantidad),0), unidad)}</b></div>
+      <div>Salidas del período: <b style="color:var(--red);">-${fmtNum(r.salidasPeriodo.reduce((s,x)=>s+Number(x.cantidad),0), unidad)}</b></div>
+    </div>
+
+    <div class="form-grid cols2" style="margin-bottom:12px;font-size:14px;">
+      <div>Stock teórico: <b>${fmtNum(r.stockTeorico, unidad)}</b></div>
+      <div>Stock físico (actual): <b>${fmtNum(r.stockFisico, unidad)}</b></div>
+    </div>
+
+    <div class="form-grid cols2" style="margin-bottom:16px;font-size:14px;">
+      <div>Diferencia: ${formatearDiferenciaChallenge(r.diferencia, unidad)}</div>
+      <div>Desviación: ${formatearDesviacionChallenge(r.desviacionPct)}</div>
+    </div>
+
+    <div class="card-title" style="font-size:13px;margin-bottom:8px;">Movimientos considerados (${r.movimientosConsiderados.length})</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;">
+        <thead><tr><th>Tipo</th><th>Fecha</th><th style="text-align:right;">Cantidad</th><th>Responsable</th><th>Obs/Motivo</th></tr></thead>
+        <tbody>${filasMovimientosChallenge(r.movimientosConsiderados)}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderChallengeCargandoHTML() {
+  return `<div class="tip">⏳ Calculando Challenge...</div>`;
+}
+
+function renderChallengeErrorHTML(insumoId, local, conteoActualId, mensaje) {
+  const texto = mensaje || (
+    '⚠️ No se pudo verificar el Challenge completo.<br>' +
+    'No se muestran resultados parciales.<br>' +
+    'Reintenta cuando haya conexión.'
+  );
+  return `
+    <div class="alert-strip">${texto}</div>
+    <div class="form-actions" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="reintentarChallenge('${insumoId}','${local}','${conteoActualId}')">🔄 Reintentar</button>
+    </div>`;
+}
+
+// Error INTERNO de render, deliberadamente distinto de
+// renderChallengeErrorHTML(): ese mensaje dice "reintenta cuando haya
+// conexion", correcto para un fallo de lectura/calculo, pero falso para
+// una excepcion lanzada por el propio renderizado (bug de programacion)
+// -- ahi no hay nada de red que reintentar y decir "conexion" desorienta
+// el diagnostico. Se usa solo en el catch del segundo try/catch (render)
+// de ejecutarChallenge(), nunca en el del primero (lectura/calculo).
+function renderChallengeErrorInternoHTML(insumoId, local, conteoActualId) {
+  return `
+    <div class="alert-strip">⚠️ Error interno al mostrar el Challenge.<br>Esto no es un problema de conexión — revisa la consola.</div>
+    <div class="form-actions" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="reintentarChallenge('${insumoId}','${local}','${conteoActualId}')">🔄 Reintentar</button>
+    </div>`;
+}
+
+// Ejecuta el calculo completo y pinta el resultado (o el error). Separada
+// de abrirChallenge() para que "Reintentar" pueda volver a llamarla sin
+// reabrir el modal ni perder el insumoId/local/conteoActualId originales.
+//
+// DOS try/catch deliberadamente separados: un ReferenceError/TypeError
+// lanzado por renderChallengeHTML() (render, sincrono, sin red) no debe
+// caer en el mismo catch que un fallo real de calcularChallengeExacto()
+// (lectura, async, de red) -- son causas distintas y el mensaje mostrado
+// no puede ser el mismo. El primer try/catch (lectura/calculo) muestra el
+// mensaje bloqueante "Reintenta cuando haya conexion", sin resultado
+// parcial, con boton Reintentar. El segundo try/catch (render) nunca se
+// confunde con un problema de conexion: usa renderChallengeErrorInternoHTML()
+// y deja constancia en console.error() para que el error real (con stack)
+// quede visible, ya que el mensaje en pantalla es generico a proposito (no
+// debe filtrar detalles internos a la UI).
+async function ejecutarChallenge(insumoId, local, conteoActualId) {
+  const contenedor = document.getElementById('challenge-content');
+  contenedor.innerHTML = renderChallengeCargandoHTML();
+
+  let resultado;
+  try {
+    resultado = await calcularChallengeExacto(insumoId, local, conteoActualId);
+  } catch (err) {
+    contenedor.innerHTML = renderChallengeErrorHTML(insumoId, local, conteoActualId);
+    return;
+  }
+
+  if (!resultado) {
+    contenedor.innerHTML = renderChallengeErrorHTML(insumoId, local, conteoActualId,
+      '⚠️ No se encontró el conteo solicitado.<br>No se muestran resultados parciales.');
+    return;
+  }
+
+  try {
+    contenedor.innerHTML = renderChallengeHTML(insumoId, local, resultado);
+  } catch (err) {
+    console.error('Challenge: error interno al renderizar el resultado (no es un problema de lectura/conexion):', err);
+    contenedor.innerHTML = renderChallengeErrorInternoHTML(insumoId, local, conteoActualId);
+  }
+}
+
+async function reintentarChallenge(insumoId, local, conteoActualId) {
+  await ejecutarChallenge(insumoId, local, conteoActualId);
+}
+
+async function abrirChallenge(insumoId, local, conteoActualId) {
+  document.getElementById('modal-challenge').classList.add('open');
+  await ejecutarChallenge(insumoId, local, conteoActualId);
 }
 
 function estadoSemaforo(ins, stockEst) {
@@ -2221,7 +2728,12 @@ function filtrarInventario() {
         <td>${r.unidad||''}</td>
         <td>${r.responsable}</td>
         <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;">${r.obs||''}</td>
-        <td><button class="btn-icon" title="Eliminar" onclick="eliminar('inventario','${r.id}',filtrarInventario)">🗑</button></td>
+        <td>
+          <div class="row-actions">
+            <button class="btn-icon" title="Challenge (vs. conteo anterior)" onclick="abrirChallenge('${r.insumoId}','${r.local}','${r.id}')">🔍</button>
+            <button class="btn-icon" title="Eliminar" onclick="eliminar('inventario','${r.id}',filtrarInventario)">🗑</button>
+          </div>
+        </td>
       </tr>`;
     });
   });
