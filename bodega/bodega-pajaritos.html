@@ -1549,6 +1549,7 @@ function poblarSelectInsumos(selectId) {
   const current = sel.value;
   sel.innerHTML = '<option value="">Seleccionar insumo</option>';
   DB.insumos.forEach(ins => {
+    if (ins.activo === false) return; // articulo_local_disponibilidad (Dashboard) -- inactivo para este local, no se ofrece en ingresos/salidas/inventario.
     sel.innerHTML += `<option value="${ins.id}">${ins.nombre} (${ins.unidad})</option>`;
   });
   if (current) sel.value = current;
@@ -1725,6 +1726,7 @@ function renderDashboard() {
   const alertas = [];
 
   DB.insumos.forEach(ins => {
+    if (ins.activo === false) return; // inactivo para su local segun el Dashboard -- no cuenta en KPIs ni alertas.
     const aplicaLocales = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
     aplicaLocales.filter(l => locales.includes(l)).forEach(l => {
       const key = `${ins.id}|${l}`;
@@ -2062,7 +2064,7 @@ function generarConteoInventario(prefix) {
 
   const tbody = document.getElementById(`${prefix}-conteo-tbody`);
   const insumos = [...DB.insumos]
-    .filter(ins => ins.local === local && !DB.stockOcultos.has(`${ins.id}|${local}`))
+    .filter(ins => ins.local === local && ins.activo !== false && !DB.stockOcultos.has(`${ins.id}|${local}`))
     .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
 
   if (insumos.length === 0) {
@@ -2265,7 +2267,9 @@ function abrirModalBulk() {
     lista.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No hay insumos configurados. Ve a ⚙️ Configuración.</p>';
     return;
   }
-  lista.innerHTML = DB.insumos.map(ins => `
+  lista.innerHTML = DB.insumos
+    .filter(ins => ins.activo !== false) // inactivo para su local segun el Dashboard -- no se ofrece en Conteo masivo.
+    .map(ins => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
       <span style="flex:1;font-size:14px;">${ins.nombre} <span style="color:var(--text-muted);font-size:11px;">(${ins.unidad})</span></span>
       <input type="number" id="bulk-${ins.id}" placeholder="0" min="0" step="any"
@@ -2348,6 +2352,7 @@ function renderStock() {
   const filas = [];
 
   DB.insumos.forEach(ins => {
+    if (ins.activo === false) return; // inactivo para su local segun el Dashboard -- no aparece en Stock en vivo.
     const aplicaLocales = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
     aplicaLocales.filter(l => locales.includes(l)).forEach(l => {
       const key = `${ins.id}|${l}`;
