@@ -2655,12 +2655,24 @@ async function guardarRecepcion() {
   const resultado = document.getElementById('rec-resultado');
 
   try {
-    const respuesta = await sbFetch(`${SB_URL}/rest/v1/recepciones_compra_legado`, {
+    // IMPORTANTE: RETURNING/Prefer:return=representation de un INSERT
+    // NUNCA refleja lo que escribe un trigger AFTER INSERT (verificado
+    // contra Postgres real) -- el trigger de materializacion SI corre y
+    // SI actualiza core_movimiento_id/core_estado_documental/core_error,
+    // pero la fila que devuelve el POST siempre los trae en null. Por
+    // eso se hace un GET de confirmacion aparte, inmediatamente despues
+    // (misma transaccion ya committeada por el POST -- el trigger
+    // siempre alcanza a correr antes de que el POST responda).
+    await sbFetch(`${SB_URL}/rest/v1/recepciones_compra_legado`, {
       method: 'POST',
-      headers: { 'Prefer': 'return=representation' },
+      headers: { 'Prefer': 'return=minimal' },
       body: JSON.stringify([cleanRecord(registro)])
     });
-    const fila = Array.isArray(respuesta) ? respuesta[0] : respuesta;
+    const confirmacion = await sbFetch(
+      `${SB_URL}/rest/v1/recepciones_compra_legado?id=eq.${registro.id}&select=core_movimiento_id,core_estado_documental,core_error`,
+      { method: 'GET' }
+    );
+    const fila = Array.isArray(confirmacion) ? confirmacion[0] : confirmacion;
 
     if (fila && fila.core_error) {
       if (fila.core_error.includes('idempotency_key ya fue usada')) {
