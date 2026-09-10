@@ -711,8 +711,112 @@
     <div class="section-title">Ingresos a bodega</div>
     <div class="section-sub">Registra lo que llega de proveedores</div>
 
-    <div class="card">
-      <div class="card-title">Nuevo ingreso</div>
+    <div class="card" id="rec-card">
+      <div class="card-title">📄 Nueva Recepción (factura)</div>
+      <div class="section-sub">Flujo normal para mercadería de proveedor. Genera Aceite/Mantequilla/etc. + factura vinculada al RCV.</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>Fecha de recepción</label>
+          <input type="date" id="rec-fecha">
+        </div>
+        <div class="field">
+          <label>Local</label>
+          <select id="rec-local" onchange="poblarResponsable('rec-responsable', this.value); poblarSelectInsumos('rec-insumo')">
+            <option value="">Seleccionar local</option>
+            <option value="Plaza Oeste">Plaza Oeste</option>
+            <option value="Pajaritos">Pajaritos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Proveedor</label>
+          <select id="rec-proveedor" onchange="toggleOtroProveedorRecepcion(this.value)">
+            <option value="">Seleccionar proveedor</option>
+          </select>
+          <input type="text" id="rec-proveedor-otro" placeholder="Nombre del proveedor" style="display:none;margin-top:8px;">
+        </div>
+        <div class="field">
+          <label>Tipo documento</label>
+          <select id="rec-tipo-documento" onchange="verificarMatchRCV()">
+            <option value="33">Factura Electrónica</option>
+            <option value="34">Factura No Afecta o Exenta</option>
+            <option value="46">Factura de Compra</option>
+            <option value="52">Guía de Despacho</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>N° Factura / Folio</label>
+          <input type="text" id="rec-folio" placeholder="Ej: 12345" inputmode="numeric" oninput="verificarMatchRCV()">
+        </div>
+        <div class="field">
+          <label>Fecha del documento</label>
+          <input type="date" id="rec-fecha-documento">
+        </div>
+        <div class="field">
+          <label>Responsable</label>
+          <select id="rec-responsable">
+            <option value="">Seleccionar responsable</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Observación</label>
+          <input type="text" id="rec-obs" placeholder="Opcional">
+        </div>
+      </div>
+
+      <div id="rec-aviso-duplicado" class="alert-strip amber" style="display:none;margin-top:12px;"></div>
+
+      <div class="card-title" style="margin-top:18px;">Productos recibidos</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>Producto</label>
+          <select id="rec-insumo">
+            <option value="">Seleccionar insumo</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Unidad</label>
+          <input type="text" id="rec-unidad" placeholder="kg, litros, unidades…" readonly>
+        </div>
+        <div class="field">
+          <label>Cantidad</label>
+          <input type="number" id="rec-cantidad" placeholder="0" min="0" step="any">
+        </div>
+        <div class="field">
+          <label>N° Lote (opcional)</label>
+          <input type="text" id="rec-lote" placeholder="Ej: L2024001">
+        </div>
+        <div class="field">
+          <label>Vencimiento (opcional)</label>
+          <input type="date" id="rec-vencimiento">
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="agregarLineaRecepcion()">+ Agregar producto</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Unidad</th><th></th></tr></thead>
+          <tbody id="rec-lineas-tbody"><tr><td colspan="4" class="no-data">Aún no agregas productos</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="form-actions" style="margin-top:14px;">
+        <button class="btn btn-primary" id="rec-registrar-btn" onclick="guardarRecepcion()">✅ Registrar recepción</button>
+        <button class="btn btn-ghost" onclick="limpiarFormRecepcion()">Limpiar</button>
+      </div>
+
+      <div id="rec-resultado" style="display:none;margin-top:14px;"></div>
+    </div>
+
+    <div class="form-actions" style="margin:4px 0 14px;">
+      <button class="btn btn-ghost btn-sm" onclick="toggleIngresoSinDocumento()" id="btn-toggle-ingreso-legacy">○ Ingreso sin documento (boleta, ajuste, sin factura)</button>
+    </div>
+
+    <div class="card" id="ing-legacy-card" style="display:none;">
+      <div class="card-title">Ingreso sin documento</div>
+      <div class="section-sub">Solo para compras SIN factura (boleta de supermercado, ajuste, traspaso). Si hay factura de proveedor, usa "Nueva Recepción" arriba.</div>
+
       <div class="form-grid cols2">
         <div class="field">
           <label>Fecha</label>
@@ -1433,7 +1537,7 @@ function seleccionarPerfil(id) {
     document.getElementById('globalLocalBadge').textContent = perfil.local;
     document.getElementById('globalLocalBadge').style.cursor = 'default';
     // Fijar visualmente los selectores de local en formularios
-    ['ing-local','sal-local','inv-local','invl-local','bulk-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
+    ['ing-local','sal-local','inv-local','invl-local','bulk-local','rec-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
     // Pre-seleccionar local en filtros
     ['filt-ing-local','filt-sal-local','filt-inv-local','filt-invl-local','filt-stock-local'].forEach(id => {
       const el = document.getElementById(id);
@@ -1443,7 +1547,7 @@ function seleccionarPerfil(id) {
     globalLocal = '';
     document.getElementById('globalLocalBadge').textContent = 'Todos los locales';
     document.getElementById('globalLocalBadge').style.cursor = 'pointer';
-    ['ing-local','sal-local','inv-local','invl-local','bulk-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
+    ['ing-local','sal-local','inv-local','invl-local','bulk-local','rec-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
   }
 
   // Pre-llenar fecha de hoy en todos los formularios de conteo
@@ -1528,7 +1632,7 @@ function switchTab(id) {
   document.getElementById('tab-' + id).classList.add('active');
   event.currentTarget.classList.add('active');
   if (id === 'dashboard') renderDashboard();
-  if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); filtrarIngresos(); }
+  if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); poblarSelectInsumos('rec-insumo'); cargarYPoblarProveedores(); filtrarIngresos(); }
   if (id === 'salidas') { poblarSelectInsumos('sal-insumo'); filtrarSalidas(); }
   if (id === 'inventario') { poblarSelectInsumos('inv-insumo'); filtrarInventario(); }
   if (id === 'stock') renderStock();
@@ -2388,6 +2492,207 @@ function setFechaHoy(id) {
   if (el.type === 'datetime-local') {
     const now = new Date();
     el.value = now.toISOString().slice(0,16);
+  }
+}
+
+// ══════════════════════════════════════════════════
+// NUEVA RECEPCIÓN (factura) -- flujo normal para mercadería de
+// proveedor (secciones 2/6/7/9 del encargo "Recepción de facturas en
+// Bodega + cruce RCV"). Escribe en public.recepciones_compra_legado
+// (grants abiertos, igual que ingresos/salidas -- sin login
+// individual) -- el trigger real (migración 102) materializa contra
+// registrar_recepcion_compra (Core canónico) DENTRO de la misma
+// transacción del INSERT. Con Prefer: return=representation, la fila
+// que responde el POST YA trae core_movimiento_id/core_estado_documental/
+// core_error resueltos -- no hace falta una segunda consulta.
+// ══════════════════════════════════════════════════
+let recepcionLineasActuales = [];
+
+async function cargarYPoblarProveedores() {
+  if (!DB.proveedores || DB.proveedores.length === 0) {
+    try { DB.proveedores = await sbSelect('proveedores'); }
+    catch (e) { DB.proveedores = DB.proveedores || []; }
+  }
+  const sel = document.getElementById('rec-proveedor');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Seleccionar proveedor</option>';
+  [...DB.proveedores].filter(p => p.activo !== false).sort((a,b) => a.razon_social.localeCompare(b.razon_social, 'es-CL'))
+    .forEach(p => sel.innerHTML += `<option value="${p.id}">${p.razon_social}</option>`);
+  sel.innerHTML += '<option value="__otro__">Otro proveedor (no está en la lista)</option>';
+  if (current) sel.value = current;
+}
+
+function toggleOtroProveedorRecepcion(val) {
+  const otro = document.getElementById('rec-proveedor-otro');
+  if (otro) otro.style.display = val === '__otro__' ? '' : 'none';
+  verificarMatchRCV();
+}
+
+function toggleIngresoSinDocumento() {
+  const card = document.getElementById('ing-legacy-card');
+  const btn = document.getElementById('btn-toggle-ingreso-legacy');
+  if (!card) return;
+  const abierto = card.style.display !== 'none';
+  card.style.display = abierto ? 'none' : '';
+  if (btn) btn.textContent = abierto ? '○ Ingreso sin documento (boleta, ajuste, sin factura)' : '● Ocultar ingreso sin documento';
+}
+
+// Match inmediato con RCV (sección 6): consulta directa a
+// documentos_compra (lectura pública, RLS ya la protege por empresa) --
+// solo informa "✓ Factura encontrada en RCV" / "○ Pendiente de aparecer
+// en RCV", NUNCA bloquea al trabajador si todavía no existe.
+async function verificarMatchRCV() {
+  const aviso = document.getElementById('rec-aviso-duplicado');
+  if (!aviso) return;
+  const provSel = document.getElementById('rec-proveedor')?.value;
+  const tipo = document.getElementById('rec-tipo-documento')?.value;
+  const folio = (document.getElementById('rec-folio')?.value || '').trim();
+  if (!provSel || provSel === '__otro__' || !tipo || !/^[0-9]+$/.test(folio)) {
+    aviso.style.display = 'none';
+    return;
+  }
+  try {
+    const url = `${SB_URL}/rest/v1/documentos_compra?select=id,monto_total&proveedor_id=eq.${provSel}&tipo_dte=eq.${tipo}&folio=eq.${folio}`;
+    const res = await sbFetch(url, { method: 'GET' });
+    if (Array.isArray(res) && res.length > 0) {
+      aviso.style.cssText = 'display:block;margin-top:12px;background:rgba(26,158,106,.08);border:1px solid rgba(26,158,106,.3);color:var(--text);padding:10px 14px;border-radius:8px;font-size:13px;';
+      aviso.textContent = '✓ Factura encontrada en RCV';
+    } else {
+      aviso.style.cssText = 'display:block;margin-top:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);padding:10px 14px;border-radius:8px;font-size:13px;';
+      aviso.textContent = '○ Pendiente de aparecer en RCV (se vinculará automáticamente cuando llegue)';
+    }
+  } catch (e) {
+    aviso.style.display = 'none';
+  }
+}
+
+function agregarLineaRecepcion() {
+  const insumoId = document.getElementById('rec-insumo').value;
+  const cantidad = parseFloat(document.getElementById('rec-cantidad').value);
+  const lote = document.getElementById('rec-lote')?.value.trim() || '';
+  const vencimiento = document.getElementById('rec-vencimiento')?.value || '';
+  const ins = getInsumo(insumoId);
+  if (!insumoId || !cantidad || cantidad <= 0) {
+    toast('⚠️ Selecciona un producto y una cantidad mayor a cero', true); return;
+  }
+  recepcionLineasActuales.push({ insumoId, nombre: ins ? ins.nombre : insumoId, cantidad, unidad: ins ? ins.unidad : '', lote, vencimiento });
+  renderLineasRecepcion();
+  document.getElementById('rec-insumo').value = '';
+  document.getElementById('rec-unidad').value = '';
+  document.getElementById('rec-cantidad').value = '';
+  document.getElementById('rec-lote').value = '';
+  document.getElementById('rec-vencimiento').value = '';
+}
+
+function quitarLineaRecepcion(i) {
+  recepcionLineasActuales.splice(i, 1);
+  renderLineasRecepcion();
+}
+
+function renderLineasRecepcion() {
+  const tbody = document.getElementById('rec-lineas-tbody');
+  if (!tbody) return;
+  if (recepcionLineasActuales.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="no-data">Aún no agregas productos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = recepcionLineasActuales.map((l, i) => `
+    <tr>
+      <td>${l.nombre}${l.lote ? ' · Lote ' + l.lote : ''}</td>
+      <td>${l.cantidad}</td>
+      <td>${l.unidad}</td>
+      <td><button class="btn-icon" onclick="quitarLineaRecepcion(${i})">🗑</button></td>
+    </tr>
+  `).join('');
+}
+
+function limpiarFormRecepcion() {
+  recepcionLineasActuales = [];
+  renderLineasRecepcion();
+  ['rec-folio','rec-fecha-documento','rec-obs','rec-cantidad','rec-lote','rec-vencimiento'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const prov = document.getElementById('rec-proveedor'); if (prov) prov.value = '';
+  const provOtro = document.getElementById('rec-proveedor-otro'); if (provOtro) { provOtro.value = ''; provOtro.style.display = 'none'; }
+  document.getElementById('rec-insumo').value = '';
+  document.getElementById('rec-unidad').value = '';
+  const aviso = document.getElementById('rec-aviso-duplicado'); if (aviso) aviso.style.display = 'none';
+  const resultado = document.getElementById('rec-resultado'); if (resultado) resultado.style.display = 'none';
+}
+
+async function guardarRecepcion() {
+  const fecha = document.getElementById('rec-fecha').value;
+  const local = document.getElementById('rec-local').value;
+  const provSel = document.getElementById('rec-proveedor').value;
+  const provOtroTexto = document.getElementById('rec-proveedor-otro')?.value.trim() || '';
+  const tipoDocumento = document.getElementById('rec-tipo-documento').value;
+  const folio = document.getElementById('rec-folio').value.trim();
+  const fechaDocumento = document.getElementById('rec-fecha-documento').value || null;
+  const responsable = document.getElementById('rec-responsable').value.trim();
+  const obs = document.getElementById('rec-obs').value.trim();
+
+  if (!fecha || !local || (!provSel) || (provSel === '__otro__' && !provOtroTexto) || !folio || !responsable) {
+    toast('⚠️ Completa fecha, local, proveedor, folio y responsable', true); return;
+  }
+  if (recepcionLineasActuales.length === 0) {
+    toast('⚠️ Agrega al menos un producto antes de registrar la recepción', true); return;
+  }
+
+  const proveedorId = (provSel && provSel !== '__otro__') ? provSel : null;
+  const proveedorInformado = (provSel === '__otro__') ? provOtroTexto : null;
+
+  const registro = {
+    id: uid(), fecha, local,
+    proveedor_id: proveedorId, proveedor: proveedorInformado,
+    tipo_documento: tipoDocumento, folio,
+    fecha_documento: fechaDocumento,
+    responsable, obs: obs || null,
+    lineas: recepcionLineasActuales.map(l => ({ insumoId: l.insumoId, cantidad: l.cantidad, unidad: l.unidad }))
+  };
+
+  const btn = document.getElementById('rec-registrar-btn');
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+  const resultado = document.getElementById('rec-resultado');
+
+  try {
+    const respuesta = await sbFetch(`${SB_URL}/rest/v1/recepciones_compra_legado`, {
+      method: 'POST',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify([cleanRecord(registro)])
+    });
+    const fila = Array.isArray(respuesta) ? respuesta[0] : respuesta;
+
+    if (fila && fila.core_error) {
+      if (fila.core_error.includes('idempotency_key ya fue usada')) {
+        resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(200,122,0,.08);border:1px solid rgba(200,122,0,.3);padding:14px;border-radius:8px;font-size:14px;';
+        resultado.innerHTML = `⚠️ Esta factura ya fue registrada para ${local}.<br><span style="font-size:12px;color:var(--text-muted);">Si tiene diferencias, debe revisarse antes de corregirla -- no se registró de nuevo.</span>`;
+      } else {
+        resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);padding:14px;border-radius:8px;font-size:14px;';
+        resultado.innerHTML = `❌ No se pudo registrar: ${fila.core_error}`;
+      }
+      return;
+    }
+    if (!fila || !fila.core_movimiento_id) {
+      resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);padding:14px;border-radius:8px;font-size:14px;';
+      resultado.innerHTML = '❌ No se pudo confirmar el registro. Vuelve a intentar.';
+      return;
+    }
+
+    const estadoTexto = fila.core_estado_documental === 'VINCULADO'
+      ? '✓ Factura encontrada en RCV'
+      : '○ Pendiente de aparecer en RCV';
+    resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(26,158,106,.08);border:1px solid rgba(26,158,106,.3);padding:14px;border-radius:8px;font-size:14px;';
+    resultado.innerHTML = `✓ Recepción registrada<br>Factura ${folio} · ${recepcionLineasActuales.length} producto${recepcionLineasActuales.length===1?'':'s'} · Stock actualizado<br><span style="font-size:12px;color:var(--text-muted);">${estadoTexto}</span>`;
+
+    renderDashboard();
+    renderStock();
+    limpiarFormRecepcion();
+    resultado.style.display = 'block';
+  } catch (e) {
+    resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);padding:14px;border-radius:8px;font-size:14px;';
+    resultado.innerHTML = '❌ No se pudo guardar (' + e.message + '). Vuelve a intentar.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
   }
 }
 
