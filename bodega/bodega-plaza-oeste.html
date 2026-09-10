@@ -1534,7 +1534,7 @@ function seleccionarPerfil(id) {
 
   // Poblar responsables según local del perfil
   const localResp = perfil.local || 'ambos';
-  ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
+  ['ing-responsable','sal-responsable','inv-responsable','invl-responsable','rec-responsable'].forEach(id => poblarResponsable(id, localResp));
 
   // Mostrar solo las tabs del perfil
   aplicarTabsPerfil(perfil);
@@ -1977,15 +1977,22 @@ function setFechaHoy(id) {
 let recepcionLineasActuales = [];
 
 async function cargarYPoblarProveedores() {
+  // BUG DE PRODUCCIÓN (corregido, migración 103): public.proveedores
+  // tiene RLS (empresa_id=usuario_actual_empresa_id()) -- Bodega usa
+  // SIEMPRE la anon key (sin login individual), esa función resuelve
+  // NULL para anon, la policy nunca es verdadera y PostgREST respondía
+  // 200 con un arreglo VACÍO (nunca un error visible). El grant de
+  // tabla a anon NO implica que RLS deje pasar filas. Se usa la RPC
+  // pública mínima listar_proveedores_bodega() en su lugar.
   if (!DB.proveedores || DB.proveedores.length === 0) {
-    try { DB.proveedores = await sbSelect('proveedores'); }
+    try { DB.proveedores = await sbRpc('listar_proveedores_bodega', {}); }
     catch (e) { DB.proveedores = DB.proveedores || []; }
   }
   const sel = document.getElementById('rec-proveedor');
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">Seleccionar proveedor</option>';
-  [...DB.proveedores].filter(p => p.activo !== false).sort((a,b) => a.razon_social.localeCompare(b.razon_social, 'es-CL'))
+  [...(DB.proveedores || [])].sort((a,b) => a.razon_social.localeCompare(b.razon_social, 'es-CL'))
     .forEach(p => sel.innerHTML += `<option value="${p.id}">${p.razon_social}</option>`);
   sel.innerHTML += '<option value="__otro__">Otro proveedor (no está en la lista)</option>';
   if (current) sel.value = current;
@@ -2021,8 +2028,10 @@ async function verificarMatchRCV() {
     return;
   }
   try {
-    const url = `${SB_URL}/rest/v1/documentos_compra?select=id,monto_total&proveedor_id=eq.${provSel}&tipo_dte=eq.${tipo}&folio=eq.${folio}`;
-    const res = await sbFetch(url, { method: 'GET' });
+    // BUG DE PRODUCCIÓN (corregido, migración 103): documentos_compra
+    // tiene la MISMA RLS por empresa que bloqueaba proveedores -- se usa
+    // la RPC pública mínima buscar_documento_compra_bodega() en su lugar.
+    const res = await sbRpc('buscar_documento_compra_bodega', { p_proveedor_id: provSel, p_tipo_dte: tipo, p_folio: folio });
     if (Array.isArray(res) && res.length > 0) {
       aviso.style.cssText = 'display:block;margin-top:12px;background:rgba(26,158,106,.08);border:1px solid rgba(26,158,106,.3);color:var(--text);padding:10px 14px;border-radius:8px;font-size:13px;';
       aviso.textContent = '✓ Factura encontrada en RCV';
@@ -3488,6 +3497,15 @@ async function sbFetch(url, options) {
   return ct.includes('json') ? resp.json() : { ok: true };
 }
 
+// RPC de Supabase (Postgres function) -- Bodega nunca las había usado
+// antes (solo REST directo sobre tablas); necesarias desde la
+// migración 103 para leer datos protegidos por RLS sin login
+// individual (proveedores/documentos_compra vía funciones públicas
+// mínimas de solo lectura).
+async function sbRpc(nombre, params) {
+  return sbFetch(`${SB_URL}/rest/v1/rpc/${nombre}`, { method: 'POST', body: JSON.stringify(params || {}) });
+}
+
 // HARDENING sbSelect: orden deterministico por tabla. Antes, sbSelect()
 // pedia ?select=*&limit=1000 sin order= -- PostgREST no garantiza que 1000
 // filas devuelve al cruzar ese limite, ni en que orden, y
@@ -3643,11 +3661,11 @@ async function bajarDatosDesdeSheets(local) {
       filtrarSalidas(); filtrarIngresos(); filtrarInventario(); filtrarInventarioLocal();
     }
     // Repoblar selects de insumos siempre (para vendedores)
-    ['ing-insumo','sal-insumo','inv-insumo','invl-insumo'].forEach(id => poblarSelectInsumos(id));
+    ['ing-insumo','sal-insumo','inv-insumo','invl-insumo','rec-insumo'].forEach(id => poblarSelectInsumos(id));
     // Repoblar responsables según local del perfil
     if (perfilActual) {
       const localResp = perfilActual.local || 'ambos';
-      ['ing-responsable','sal-responsable','inv-responsable','invl-responsable'].forEach(id => poblarResponsable(id, localResp));
+      ['ing-responsable','sal-responsable','inv-responsable','invl-responsable','rec-responsable'].forEach(id => poblarResponsable(id, localResp));
       // Fijar local en formularios si perfil tiene local fijo
       if (perfilActual.localFijo && perfilActual.local) {
         ['ing-local','sal-local','inv-local','invl-local'].forEach(id => {
@@ -3747,6 +3765,7 @@ function init() {
   autoFillUnidad('sal-insumo', 'sal-unidad');
   autoFillUnidad('inv-insumo', 'inv-unidad');
   autoFillUnidad('ce-insumo', 'ce-unidad');
+  autoFillUnidad('rec-insumo', 'rec-unidad');
 
   // Poblar selects de insumos
   ['ing-insumo','sal-insumo','inv-insumo','ce-insumo'].forEach(poblarSelectInsumos);
