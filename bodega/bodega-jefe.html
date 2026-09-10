@@ -720,7 +720,7 @@
         </div>
         <div class="field">
           <label>Local</label>
-          <select id="ing-local" onchange="poblarResponsable('ing-responsable', this.value)">
+          <select id="ing-local" onchange="poblarResponsable('ing-responsable', this.value); poblarSelectInsumos('ing-insumo')">
             <option value="">Seleccionar local</option>
             <option value="Plaza Oeste">Plaza Oeste</option>
             <option value="Pajaritos">Pajaritos</option>
@@ -823,7 +823,7 @@
         </div>
         <div class="field">
           <label>Local</label>
-          <select id="sal-local" onchange="poblarResponsable('sal-responsable', this.value)">
+          <select id="sal-local" onchange="poblarResponsable('sal-responsable', this.value); poblarSelectInsumos('sal-insumo')">
             <option value="">Seleccionar local</option>
             <option value="Plaza Oeste">Plaza Oeste</option>
             <option value="Pajaritos">Pajaritos</option>
@@ -912,7 +912,7 @@
         </div>
         <div class="field">
           <label>Local</label>
-          <select id="inv-local" onchange="poblarResponsable('inv-responsable', this.value)">
+          <select id="inv-local" onchange="poblarResponsable('inv-responsable', this.value); poblarSelectInsumos('inv-insumo')">
             <option value="">Seleccionar local</option>
             <option value="Plaza Oeste">Plaza Oeste</option>
             <option value="Pajaritos">Pajaritos</option>
@@ -976,7 +976,7 @@
         </div>
         <div class="field">
           <label>Local</label>
-          <select id="invl-local" onchange="poblarResponsable('invl-responsable', this.value)">
+          <select id="invl-local" onchange="poblarResponsable('invl-responsable', this.value); poblarSelectInsumos('invl-insumo')">
             <option value="">Seleccionar local</option>
             <option value="Plaza Oeste">Plaza Oeste</option>
             <option value="Pajaritos">Pajaritos</option>
@@ -1261,7 +1261,7 @@
     </div>
     <div class="field" style="margin-bottom:12px;">
       <label>Local</label>
-      <select id="bulk-local">
+      <select id="bulk-local" onchange="poblarListaBulk(); poblarResponsable('bulk-responsable', this.value)">
         <option value="Plaza Oeste">Plaza Oeste</option>
         <option value="Pajaritos">Pajaritos</option>
       </select>
@@ -1433,7 +1433,7 @@ function seleccionarPerfil(id) {
     document.getElementById('globalLocalBadge').textContent = perfil.local;
     document.getElementById('globalLocalBadge').style.cursor = 'default';
     // Fijar visualmente los selectores de local en formularios
-    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
+    ['ing-local','sal-local','inv-local','invl-local','bulk-local'].forEach(id => fijarLocal(id, id + '-fixed', perfil.local));
     // Pre-seleccionar local en filtros
     ['filt-ing-local','filt-sal-local','filt-inv-local','filt-invl-local','filt-stock-local'].forEach(id => {
       const el = document.getElementById(id);
@@ -1443,7 +1443,7 @@ function seleccionarPerfil(id) {
     globalLocal = '';
     document.getElementById('globalLocalBadge').textContent = 'Todos los locales';
     document.getElementById('globalLocalBadge').style.cursor = 'pointer';
-    ['ing-local','sal-local','inv-local','invl-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
+    ['ing-local','sal-local','inv-local','invl-local','bulk-local'].forEach(id => fijarLocal(id, id + '-fixed', ''));
   }
 
   // Pre-llenar fecha de hoy en todos los formularios de conteo
@@ -1572,9 +1572,14 @@ function poblarSelectInsumos(selectId) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const current = sel.value;
+  // Mismo criterio que generarConteoInventario: el select de insumo se
+  // limita al local del select hermano "*-local" (fijo por perfil o
+  // elegido libremente por Jefe/Admin) -- nunca mezcla ambos locales.
+  const local = document.getElementById(selectId.replace('-insumo', '-local'))?.value || '';
   sel.innerHTML = '<option value="">Seleccionar insumo</option>';
   DB.insumos.forEach(ins => {
     if (ins.activo === false) return; // articulo_local_disponibilidad (Dashboard) -- inactivo para este local, no se ofrece en ingresos/salidas/inventario.
+    if (!local || ins.local !== local) return; // solo insumos del local operativo seleccionado.
     sel.innerHTML += `<option value="${ins.id}">${ins.nombre} (${ins.unidad})</option>`;
   });
   if (current) sel.value = current;
@@ -2794,14 +2799,24 @@ function abrirModalBulk() {
   const local = perfilActual?.local || 'Plaza Oeste';
   document.getElementById('bulk-local').value = local;
   poblarResponsable('bulk-responsable', local);
+  poblarListaBulk();
+}
+
+function poblarListaBulk() {
+  const local = document.getElementById('bulk-local').value;
   const lista = document.getElementById('bulk-insumos-lista');
   if (DB.insumos.length === 0) {
     lista.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No hay insumos configurados. Ve a ⚙️ Configuración.</p>';
     return;
   }
-  lista.innerHTML = DB.insumos
-    .filter(ins => ins.activo !== false) // inactivo para su local segun el Dashboard -- no se ofrece en Conteo masivo.
-    .map(ins => `
+  // Mismo criterio que generarConteoInventario/poblarSelectInsumos: solo
+  // insumos del local elegido en este modal, y activos para ese local.
+  const insumosLocal = DB.insumos.filter(ins => ins.local === local && ins.activo !== false);
+  if (insumosLocal.length === 0) {
+    lista.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">No hay insumos activos para este local.</p>';
+    return;
+  }
+  lista.innerHTML = insumosLocal.map(ins => `
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
       <span style="flex:1;font-size:14px;">${ins.nombre} <span style="color:var(--text-muted);font-size:11px;">(${ins.unidad})</span></span>
       <input type="number" id="bulk-${ins.id}" placeholder="0" min="0" step="any"
