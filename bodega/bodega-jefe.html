@@ -721,7 +721,7 @@
         </div>
         <div class="field">
           <label>Local</label>
-          <select id="rec-local" onchange="poblarResponsable('rec-responsable', this.value); poblarSelectInsumos('rec-insumo')">
+          <select id="rec-local" onchange="poblarResponsable('rec-responsable', this.value); poblarSelectInsumos('rec-insumo'); cargarYPoblarProveedores()">
             <option value="">Seleccionar local</option>
             <option value="Plaza Oeste">Plaza Oeste</option>
             <option value="Pajaritos">Pajaritos</option>
@@ -2509,23 +2509,29 @@ function setFechaHoy(id) {
 let recepcionLineasActuales = [];
 
 async function cargarYPoblarProveedores() {
-  // BUG DE PRODUCCIÓN (corregido, migración 103): public.proveedores
-  // tiene RLS (empresa_id=usuario_actual_empresa_id()) -- Bodega usa
-  // SIEMPRE la anon key (sin login individual), esa función resuelve
-  // NULL para anon, la policy nunca es verdadera y PostgREST respondía
-  // 200 con un arreglo VACÍO (nunca un error visible). El grant de
-  // tabla a anon NO implica que RLS deje pasar filas. Se usa la RPC
-  // pública mínima listar_proveedores_bodega() en su lugar.
-  if (!DB.proveedores || DB.proveedores.length === 0) {
-    try { DB.proveedores = await sbRpc('listar_proveedores_bodega', {}); }
-    catch (e) { DB.proveedores = DB.proveedores || []; }
-  }
+  // BUG DE PRODUCCIÓN (corregido, migración 103) + AJUSTE UX (migración
+  // 104): public.proveedores tiene RLS (empresa_id=
+  // usuario_actual_empresa_id()) -- Bodega usa SIEMPRE la anon key (sin
+  // login individual), esa función resuelve NULL para anon. Se usa la
+  // RPC pública mínima listar_proveedores_bodega(local), que además
+  // filtra SOLO a los proveedores habilitados para recepción física en
+  // ESE local (proveedor_local_recepcion -- nunca los 78 del ERP
+  // financiero completo) y muestra nombre_fantasia cuando existe (ej.
+  // "Distribuidora Nico" en vez de la razón social tributaria cruda).
+  // Se recarga siempre (nunca cachea) porque el resultado depende del
+  // local -- Jefe debe refrescarse al cambiar de local.
   const sel = document.getElementById('rec-proveedor');
   if (!sel) return;
+  const local = document.getElementById('rec-local')?.value || '';
   const current = sel.value;
+  let proveedores = [];
+  if (local) {
+    try { proveedores = await sbRpc('listar_proveedores_bodega', { p_local_codigo: local }); }
+    catch (e) { proveedores = []; }
+  }
   sel.innerHTML = '<option value="">Seleccionar proveedor</option>';
-  [...(DB.proveedores || [])].sort((a,b) => a.razon_social.localeCompare(b.razon_social, 'es-CL'))
-    .forEach(p => sel.innerHTML += `<option value="${p.id}">${p.razon_social}</option>`);
+  [...(proveedores || [])].sort((a,b) => a.nombre.localeCompare(b.nombre, 'es-CL'))
+    .forEach(p => sel.innerHTML += `<option value="${p.id}">${p.nombre}</option>`);
   sel.innerHTML += '<option value="__otro__">Otro proveedor (no está en la lista)</option>';
   if (current) sel.value = current;
 }
