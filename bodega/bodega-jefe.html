@@ -1826,7 +1826,20 @@ async function cargarStockCanonico(local) {
       mapa[f.articulo_maestro_id] = {
         bodega: f.stock_bodega_actual,
         local: f.stock_local_actual,
-        total: f.stock_total_actual
+        total: f.stock_total_actual,
+        // Sprint Bug Bodega (2026-09-12/116): antes se descartaban estos
+        // campos y el HTML rotulaba la cantidad BASE con ins.unidad
+        // legacy -- consultar_stock_bodega YA los calculaba (misma
+        // fuente que Dashboard Inventario), ahora se conservan todos.
+        unidadBase: f.unidad_base_codigo,
+        unidadOp: f.unidad_operacional_etiqueta, // null = sin conversion operacional confirmada (fallback a unidadBase, NUNCA ins.unidad)
+        bodegaOp: f.stock_bodega_operacional,
+        localOp: f.stock_local_operacional,
+        totalOp: f.stock_total_operacional,
+        tienePolitica: f.tiene_politica_reposicion,
+        consumoBase: f.consumo_semanal_base,
+        consumoOp: f.consumo_semanal_operacional,
+        estado: f.estado_reposicion // OK/PEDIR_PRONTO/COMPRAR_AHORA/SIN_ANCLA/DATO_PARCIAL, o null si no tiene politica -- mismo estado canonico de Compras Requeridas/Dashboard Inventario, ningun segundo semaforo.
       };
     });
     DB.stockCanonico = mapa;
@@ -1855,13 +1868,27 @@ function calcularStockVivo(insumoId, local) {
   if (ins && ins.articulo_maestro_id && DB.stockCanonico[ins.articulo_maestro_id]) {
     const c = DB.stockCanonico[ins.articulo_maestro_id];
     if (c.total === null || c.total === undefined) return null; // SIN_DATO real (sin conteo ancla) -- nunca se inventa un cero.
+    const hayOperacional = c.unidadOp !== null && c.unidadOp !== undefined;
     return {
       anclaFecha: null, // ya no aplica: el saldo viene reconstruido por Core (conteo aprobado + movimientos), no de un ancla local.
       anclaStock: c.bodega,
       ingresos: 0,
       salidas: 0,
       stockLocal: c.local,
-      stockEstimado: c.total
+      stockEstimado: c.total, // BASE -- solo para calculos internos (cobertura) y tooltip, NUNCA como cifra principal con etiqueta operacional.
+      esCore: true,
+      unidadBase: c.unidadBase,
+      stockOperacional: c.totalOp,
+      unidadOperacional: c.unidadOp,
+      // "mostrado" = lo que se debe pintar como cifra principal -- operacional
+      // si existe conversion confirmada, si no cantidad BASE + unidad BASE
+      // (fallback real, sección 2 del encargo -- nunca ins.unidad legacy).
+      stockMostrado: hayOperacional ? c.totalOp : c.total,
+      unidadMostrada: hayOperacional ? c.unidadOp : c.unidadBase,
+      tienePolitica: !!c.tienePolitica,
+      consumoBase: c.consumoBase,
+      consumoOperacional: c.consumoOp,
+      estadoCore: c.estado
     };
   }
 
@@ -1900,7 +1927,8 @@ function calcularStockVivo(insumoId, local) {
     ingresos: totalIngresos,
     salidas: totalSalidas,
     stockLocal,
-    stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal
+    stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal,
+    esCore: false // insumo genuinamente sin bridge todavia -- unico caso legitimo para seguir usando ins.unidad/ins.minimo/ins.critico/ins.consumoSemanal.
   };
 }
 
@@ -2507,6 +2535,70 @@ function diasCobertura(ins, stockEst) {
 }
 
 // ══════════════════════════════════════════════════
+// Sprint Bug Bodega (2026-09-12): texto/estado/cobertura UNIFICADOS.
+// Todo renderer de "Stock en vivo" debe usar estas 3 funciones -- nunca
+// volver a armar "cantidad + unidad" ni "estado"/"cobertura" a mano.
+// Para un articulo Core (esCore=true) usan EXCLUSIVAMENTE los campos ya
+// calculados por consultar_stock_bodega (116) -- misma fuente que
+// Dashboard Inventario, cero motor nuevo, cero comparacion contra
+// ins.minimo/ins.critico/ins.consumoSemanal. Para un insumo legado
+// (esCore=false, sin bridge todavia) delegan en estadoSemaforo/
+// diasCobertura de arriba -- SIN CAMBIOS, unico caso legitimo.
+// ══════════════════════════════════════════════════
+
+/** "cantidad + unidad" -- operacional si hay conversion confirmada, si
+ * no cantidad BASE + unidad BASE (fallback real, nunca ins.unidad
+ * legacy para un articulo Core). null = sin ancla (el llamador decide
+ * el texto, ej. "Sin ancla"). */
+function textoStockVivo(res, ins) {
+  if (res === null) return null;
+  if (res.esCore) {
+    const cantidad = res.stockMostrado;
+    const unidad = res.unidadMostrada || '';
+    const cantidadFmt = Number.isInteger(cantidad) ? cantidad : Math.round(cantidad * 10) / 10;
+    return `${cantidadFmt} ${unidad}`.trim();
+  }
+  const cantidad = Number.isInteger(res.stockEstimado) ? res.stockEstimado : Math.round(res.stockEstimado);
+  return `${cantidad} ${ins.unidad}`;
+}
+
+/** Estado de reposición -- para un articulo Core usa DIRECTAMENTE
+ * estado_reposicion/tiene_politica_reposicion (mismo estado canonico
+ * que Compras Requeridas/Dashboard Inventario), nunca compara stock
+ * Core contra ins.minimo/ins.critico. 'sin-politica' es un estado
+ * legitimo (articulo de solo control), nunca una alerta. */
+function estadoStock(ins, res) {
+  if (res === null) return 'sin-ancla';
+  if (!res.esCore) return estadoSemaforo(ins, res.stockEstimado); // legado, sin cambios
+  if (!res.tienePolitica) return 'sin-politica';
+  switch (res.estadoCore) {
+    case 'OK': return 'verde';
+    case 'PEDIR_PRONTO': return 'amarillo';
+    case 'COMPRAR_AHORA': return 'rojo';
+    case 'DATO_PARCIAL': return 'amarillo'; // dato parcial -- advertencia, nunca error silencioso
+    case 'SIN_ANCLA': return 'sin-ancla';
+    default: return 'sin-ancla';
+  }
+}
+
+/** Cobertura en SEMANAS -- misma formula y convencion que Dashboard
+ * Inventario (stock_total_actual/consumo_semanal_base, SIN dividir por
+ * 7; <10 sem = 1 decimal, >=10 sem = sin decimales). Para un articulo
+ * Core NUNCA usa ins.consumoSemanal (legacy, desconectado de Core desde
+ * que el stock se migro -- causa raiz de los "987 d./93.333 d." vistos
+ * en produccion). */
+function coberturaTexto(ins, res) {
+  if (res === null) return 'No aplica';
+  if (!res.esCore) return diasCobertura(ins, res.stockEstimado) + ' d.'; // legado, sin cambios
+  if (!res.tienePolitica) return 'Sin política';
+  if (res.consumoBase === null || res.consumoBase === undefined) return 'Sin consumo configurado';
+  if (res.consumoBase === 0) return 'Sin consumo';
+  const semanas = res.stockEstimado / res.consumoBase;
+  const decimales = semanas < 10 ? 1 : 0;
+  return `${semanas.toLocaleString('es-CL', { minimumFractionDigits: decimales, maximumFractionDigits: decimales })} sem`;
+}
+
+// ══════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════
 function renderDashboard() {
@@ -2515,7 +2607,7 @@ function renderDashboard() {
     `Resumen operacional · ${local || 'todos los locales'}`;
 
   const locales = local ? [local] : ['Plaza Oeste', 'Pajaritos'];
-  let ok = 0, bajo = 0, quiebre = 0, sinAncla = 0;
+  let ok = 0, bajo = 0, quiebre = 0, sinAncla = 0, sinPolitica = 0;
   const filas = [];
   const alertas = [];
 
@@ -2526,14 +2618,17 @@ function renderDashboard() {
       const key = `${ins.id}|${l}`;
       if (DB.stockOcultos && DB.stockOcultos.has(key)) return;
       const res = calcularStockVivo(ins.id, l);
-      const estado = estadoSemaforo(ins, res ? res.stockEstimado : null);
-      const dias = diasCobertura(ins, res ? res.stockEstimado : null);
+      // Sprint Bug Bodega (2026-09-12): estado/cobertura unificados --
+      // ver comentario en renderStock.
+      const estado = estadoStock(ins, res);
+      const dias = coberturaTexto(ins, res);
       if (estado === 'verde') ok++;
       else if (estado === 'amarillo') bajo++;
       else if (estado === 'rojo') quiebre++;
+      else if (estado === 'sin-politica') sinPolitica++;
       else sinAncla++;
       if (estado === 'rojo') {
-        alertas.push({ ins: ins.nombre, local: l, stock: res ? res.stockEstimado.toFixed(2) : 'S/D', unidad: ins.unidad });
+        alertas.push({ ins: ins.nombre, local: l, texto: textoStockVivo(res, ins) });
       }
       filas.push({ ins, l, res, estado, dias });
     });
@@ -2549,7 +2644,7 @@ function renderDashboard() {
   ac.innerHTML = '';
   if (alertas.length > 0) {
     alertas.forEach(a => {
-      ac.innerHTML += `<div class="alert-strip">🔴 <b>${a.ins}</b> en <b>${a.local}</b> — Stock estimado: ${a.stock} ${a.unidad}. ¡Riesgo de quiebre!</div>`;
+      ac.innerHTML += `<div class="alert-strip">🔴 <b>${a.ins}</b> en <b>${a.local}</b> — Stock estimado: ${a.texto}. ¡Riesgo de quiebre!</div>`;
     });
   }
   if (bajo > 0) {
@@ -2561,8 +2656,8 @@ function renderDashboard() {
   if (filas.length === 0) {
     tbody.innerHTML = noData(5);
   } else {
-    // Ordenar: dentro de cada cat, por estado (rojo > amarillo > sin-ancla > verde)
-    const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3 };
+    // Ordenar: dentro de cada cat, por estado (rojo > amarillo > sin-ancla > verde > sin-politica)
+    const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3, 'sin-politica': 4 };
     filas.sort((a, b) => {
       const catA = ORDEN_CATEGORIAS.indexOf(a.ins.categoria || 'Otros');
       const catB = ORDEN_CATEGORIAS.indexOf(b.ins.categoria || 'Otros');
@@ -2575,17 +2670,18 @@ function renderDashboard() {
     cats.forEach(cat => {
       html += cabeceraCategoria(cat, 5);
       grupos[cat].forEach(f => {
-        const stockStr = f.res !== null ? (Number.isInteger(f.res.stockEstimado) ? f.res.stockEstimado : Math.round(f.res.stockEstimado)) + ' ' + f.ins.unidad : '<span style="color:var(--text-dim)">Sin ancla</span>';
+        const stockStr = f.res !== null ? textoStockVivo(f.res, f.ins) : '<span style="color:var(--text-dim)">Sin ancla</span>';
         let sem = '';
         if (f.estado === 'verde') sem = `<span class="semaforo verde"><span class="dot"></span>OK</span>`;
         else if (f.estado === 'amarillo') sem = `<span class="semaforo amarillo"><span class="dot"></span>Bajo</span>`;
         else if (f.estado === 'rojo') sem = `<span class="semaforo rojo"><span class="dot"></span>Crítico</span>`;
+        else if (f.estado === 'sin-politica') sem = `<span class="chip">Sin política</span>`;
         else sem = `<span class="chip">Sin conteo</span>`;
         html += `<tr>
           <td><b>${f.ins.nombre}</b></td>
           <td>${chipLocal(f.l)}</td>
           <td>${stockStr}</td>
-          <td>${f.dias} días</td>
+          <td>${f.dias}</td>
           <td>${sem}</td>
         </tr>`;
       });
@@ -3391,9 +3487,14 @@ function renderStock() {
       const esOculto = DB.stockOcultos.has(key);
       if (esOculto && !mostrarOcultos) return;
       const res = calcularStockVivo(ins.id, l);
+      // Sprint Bug Bodega (2026-09-12): estado y cobertura SIEMPRE via
+      // las funciones unificadas -- Core nunca compara contra
+      // ins.minimo/ins.critico/ins.consumoSemanal (ver estadoStock/
+      // coberturaTexto). stockEst (BASE) se conserva solo para el
+      // fallback legado y para pct (barra visual, sin cambios).
       const stockEst = res !== null ? res.stockEstimado : null;
-      const estado = estadoSemaforo(ins, stockEst);
-      const dias = diasCobertura(ins, stockEst);
+      const estado = estadoStock(ins, res);
+      const dias = coberturaTexto(ins, res);
       if (filtEstado && estado !== filtEstado) return;
       filas.push({ ins, l, res, stockEst, estado, dias, esOculto, key });
     });
@@ -3402,7 +3503,7 @@ function renderStock() {
   const tbody = document.getElementById('tabla-stock');
   if (filas.length === 0) { tbody.innerHTML = noData(8); return; }
 
-  const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3 };
+  const ordEstado = { rojo: 0, amarillo: 1, 'sin-ancla': 2, verde: 3, 'sin-politica': 4 };
   filas.sort((a, b) => {
     const catA = ORDEN_CATEGORIAS.indexOf(a.ins.categoria || 'Otros');
     const catB = ORDEN_CATEGORIAS.indexOf(b.ins.categoria || 'Otros');
@@ -3424,16 +3525,22 @@ function renderStock() {
     if (filasVisibles.length === 0) return;
     html += cabeceraCategoria(cat, 8);
     filasVisibles.forEach(f => {
-      const stockStr = f.stockEst !== null
-        ? `<b>${Number.isInteger(f.stockEst) ? f.stockEst : Number(f.stockEst) % 1 === 0 ? Math.round(f.stockEst) : f.stockEst.toFixed(1)}</b> ${f.ins.unidad}`
+      const stockStr = f.res !== null
+        ? `<b>${textoStockVivo(f.res, f.ins)}</b>`
         : '<span style="color:var(--text-dim)">Sin ancla</span>';
-      const pct = f.stockEst !== null && f.ins.minimo > 0
+      // Barra visual de "% del mínimo" -- el mínimo sigue siendo un
+      // valor LEGACY sin equivalente canónico expuesto todavía (fuera
+      // de alcance de este sprint, no se inventa una conversión); para
+      // 'sin-politica' (articulo de solo control) se muestra vacía, ya
+      // que comparar contra un mínimo no tiene sentido sin política.
+      const pct = (f.estado !== 'sin-politica' && f.stockEst !== null && f.ins.minimo > 0)
         ? Math.min(100, Math.round((f.stockEst / f.ins.minimo) * 100)) : 0;
       const barClass = f.estado === 'verde' ? 'green' : f.estado === 'amarillo' ? 'amber' : 'red';
       let sem = '';
       if (f.estado === 'verde') sem = `<span class="semaforo verde"><span class="dot"></span>OK</span>`;
       else if (f.estado === 'amarillo') sem = `<span class="semaforo amarillo"><span class="dot"></span>Bajo</span>`;
       else if (f.estado === 'rojo') sem = `<span class="semaforo rojo"><span class="dot"></span>Crítico</span>`;
+      else if (f.estado === 'sin-politica') sem = `<span class="chip">Sin política</span>`;
       else sem = `<span class="chip">Sin conteo</span>`;
 
       const rowStyle = f.esOculto ? 'opacity:0.4;' : '';
@@ -3444,7 +3551,7 @@ function renderStock() {
         <td>${chipLocal(f.l)}</td>
         <td>${stockStr}</td>
         <td>${f.ins.minimo} ${f.ins.unidad}</td>
-        <td>${f.dias} d.</td>
+        <td>${f.dias}</td>
         <td style="min-width:100px;">
           <div class="progress-wrap"><div class="progress-bar ${barClass}" style="width:${pct}%"></div></div>
         </td>
@@ -3998,7 +4105,10 @@ const CSV_HEADERS = {
   salidas: ['id','fecha','local','insumoId','unidad','cantidad','responsable','motivo','obs'],
   inventario: ['id','fecha','local','insumoId','unidad','stock','responsable','obs'],
   consumoEsperado: ['id','fecha','local','insumoId','unidad','ventas','esperado'],
-  stock: ['insumo','local','categoria','stockEstimado','unidad','minimo','cobertura_dias','estado']
+  // Sprint Bug Bodega (2026-09-12): columnas base/operacional SIEMPRE
+  // separadas y explicitas -- nunca una sola columna ambigua que mezcle
+  // cantidad base con etiqueta operacional (o viceversa).
+  stock: ['insumo','local','categoria','stock_base','unidad_base','stock_operacional','unidad_operacional','consumo_semanal_operacional','cobertura_semanas','estado_stock']
 };
 
 function toCSV(headers, rows) {
@@ -4021,10 +4131,22 @@ function exportarCSV(tabla) {
       const locs = ins.local === 'ambos' ? ['Plaza Oeste','Pajaritos'] : [ins.local];
       locs.forEach(l => {
         const res = calcularStockVivo(ins.id, l);
-        const stockEst = res !== null ? res.stockEstimado : '';
-        const dias = diasCobertura(ins, stockEst !== '' ? stockEst : null);
-        const estado = estadoSemaforo(ins, stockEst !== '' ? stockEst : null);
-        data.push({ insumo: ins.nombre, local: l, categoria: ins.categoria, stockEstimado: stockEst !== '' ? stockEst.toFixed(2) : '', unidad: ins.unidad, minimo: ins.minimo, cobertura_dias: dias, estado });
+        const estado = estadoStock(ins, res);
+        const cobertura = coberturaTexto(ins, res); // "X sem" (Core) o "X d." (legado, sin bridge todavia) -- nunca inventa ninguno de los dos.
+        const esCore = res !== null && res.esCore;
+        const hayOperacional = esCore && res.unidadOperacional !== null && res.unidadOperacional !== undefined;
+        data.push({
+          insumo: ins.nombre,
+          local: l,
+          categoria: ins.categoria,
+          stock_base: res !== null ? res.stockEstimado : '',
+          unidad_base: esCore ? res.unidadBase : ins.unidad, // insumo legado: su unico dato es ins.unidad, aqui SI corresponde (nunca se rotula como "operacional").
+          stock_operacional: hayOperacional ? res.stockOperacional : '',
+          unidad_operacional: hayOperacional ? res.unidadOperacional : '',
+          consumo_semanal_operacional: (esCore && res.consumoOperacional !== null && res.consumoOperacional !== undefined) ? res.consumoOperacional : '',
+          cobertura_semanas: cobertura,
+          estado_stock: estado
+        });
       });
     });
     filename = 'stock_en_vivo';
