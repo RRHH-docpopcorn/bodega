@@ -809,6 +809,12 @@
       <div id="rec-resultado" style="display:none;margin-top:14px;"></div>
     </div>
 
+    <div class="card" id="recepciones-recientes-card">
+      <div class="card-title">🧾 Recepciones recientes</div>
+      <div class="section-sub">Facturas registradas en los últimos 30 días. Si falta un producto, ábrela y complétala -- nunca crea una factura nueva.</div>
+      <div id="recepciones-recientes-lista"><div class="no-data">Cargando…</div></div>
+    </div>
+
     <div class="form-actions" style="margin:4px 0 14px;">
       <button class="btn btn-ghost btn-sm" onclick="toggleIngresoSinDocumento()" id="btn-toggle-ingreso-legacy">○ Ingreso sin documento (boleta, ajuste, sin factura)</button>
     </div>
@@ -1596,7 +1602,13 @@ const DB = {
   inventario: [],
   inventario_local: [],
   consumoEsperado: [],
-  stockOcultos: new Set()
+  stockOcultos: new Set(),
+  // Sprint Recepciones documentadas (112): stock canonico (Core) por
+  // articulo_maestro_id, y facturas recientes agrupadas -- NUNCA
+  // persistidos en localStorage (siempre frescos de Supabase, ver
+  // cargarDB/guardarDB, que no los incluyen a proposito).
+  stockCanonico: {},
+  recepcionesRecientes: []
 };
 
 let globalLocal = ''; // '' = todos
@@ -1797,7 +1809,67 @@ function calcularStockLocal(insumoId, local) {
   return Number(ancla.stock);
 }
 
+// Sprint Recepciones documentadas (112/Decision 2 de la dueña): el
+// stock visible en Bodega debe ser la MISMA fuente canonica que ya
+// respalda el Dashboard -- nunca un segundo motor de calculo. Se
+// registra aqui, sin ocultarlo, cuantos insumos siguen sin
+// articulo_maestro_id (fallback legado) para poder reportarlo -- ver
+// reportarFallbackStockLegado().
+const FALLBACK_STOCK_LEGADO = new Set();
+
+async function cargarStockCanonico(local) {
+  if (!local) { DB.stockCanonico = {}; return; }
+  try {
+    const filas = await sbRpc('consultar_stock_bodega', { p_local_codigo: local });
+    const mapa = {};
+    (filas || []).forEach(f => {
+      mapa[f.articulo_maestro_id] = {
+        bodega: f.stock_bodega_actual,
+        local: f.stock_local_actual,
+        total: f.stock_total_actual
+      };
+    });
+    DB.stockCanonico = mapa;
+  } catch (e) {
+    console.warn('[stock canonico] no se pudo cargar -- se usara el calculo legado como respaldo temporal.', e);
+    DB.stockCanonico = {};
+  }
+}
+
+/** Cuantos insumos activos del local actual siguen mostrando stock por
+ * el camino legado (sin articulo_maestro_id todavia) -- para que la
+ * transicion nunca quede oculta indefinidamente (aprobado como
+ * transicion aceptable, no para resolver en este sprint). */
+function reportarFallbackStockLegado() {
+  if (FALLBACK_STOCK_LEGADO.size === 0) {
+    console.info('[stock] 0 insumos usando calculo legado -- todo el stock visible viene de Core.');
+  } else {
+    console.warn('[stock] ' + FALLBACK_STOCK_LEGADO.size + ' insumo(s) sin articulo_maestro_id todavia muestran stock por calculo legado (no Core):',
+      [...FALLBACK_STOCK_LEGADO].map(id => getInsumo(id)?.nombre || id));
+  }
+  return FALLBACK_STOCK_LEGADO.size;
+}
+
 function calcularStockVivo(insumoId, local) {
+  const ins = getInsumo(insumoId);
+  if (ins && ins.articulo_maestro_id && DB.stockCanonico[ins.articulo_maestro_id]) {
+    const c = DB.stockCanonico[ins.articulo_maestro_id];
+    if (c.total === null || c.total === undefined) return null; // SIN_DATO real (sin conteo ancla) -- nunca se inventa un cero.
+    return {
+      anclaFecha: null, // ya no aplica: el saldo viene reconstruido por Core (conteo aprobado + movimientos), no de un ancla local.
+      anclaStock: c.bodega,
+      ingresos: 0,
+      salidas: 0,
+      stockLocal: c.local,
+      stockEstimado: c.total
+    };
+  }
+
+  // Respaldo legado -- SOLO para insumos sin articulo_maestro_id
+  // todavia (sin bridge a Core). Se cuenta explicitamente (nunca queda
+  // oculto) via reportarFallbackStockLegado().
+  FALLBACK_STOCK_LEGADO.add(insumoId);
+
   // 1. Último inventario físico de BODEGA para este insumo y local
   const invs = DB.inventario
     .filter(r => r.insumoId === insumoId && r.local === local);
@@ -1830,6 +1902,87 @@ function calcularStockVivo(insumoId, local) {
     stockLocal,
     stockEstimado: anclaStock + totalIngresos - totalSalidas + stockLocal
   };
+}
+
+// ══════════════════════════════════════════════════
+// RECEPCIONES RECIENTES (Sprint 112) -- una factura = una fila, aunque
+// tenga complemento; "Ver/completar" reutiliza el mismo formulario de
+// Nueva Recepcion, nunca crea una factura nueva.
+// ══════════════════════════════════════════════════
+async function cargarRecepcionesRecientes(local) {
+  if (!local) { DB.recepcionesRecientes = []; renderRecepcionesRecientes(); return; }
+  try {
+    DB.recepcionesRecientes = await sbRpc('listar_recepciones_bodega', { p_local_codigo: local, p_dias: 30 }) || [];
+  } catch (e) {
+    console.warn('[recepciones recientes] no se pudo cargar.', e);
+    DB.recepcionesRecientes = [];
+  }
+  renderRecepcionesRecientes();
+}
+
+function renderRecepcionesRecientes() {
+  const cont = document.getElementById('recepciones-recientes-lista');
+  if (!cont) return;
+  if (!DB.recepcionesRecientes || DB.recepcionesRecientes.length === 0) {
+    cont.innerHTML = '<div class="no-data">Sin recepciones registradas en los últimos 30 días.</div>';
+    return;
+  }
+  cont.innerHTML = DB.recepcionesRecientes.map((r, idx) => {
+    const estadoTexto = r.estado_documental === 'VINCULADO' ? '✓ En RCV' : '○ Pendiente RCV';
+    const lineasHtml = (r.lineas || []).map(l =>
+      `<tr><td>${l.articulo_nombre}${l.es_complemento ? ' <span class="chip" title="Agregado después, en un segundo evento -- misma factura">(agregado después)</span>' : ''}</td><td>${l.cantidad_original} ${l.unidad_codigo}</td><td>Recibido</td></tr>`
+    ).join('');
+    return `
+      <div class="recepcion-reciente-item" style="border:1px solid var(--border,#333);border-radius:8px;margin-bottom:8px;overflow:hidden;">
+        <div class="recepcion-reciente-head" style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRecepcionReciente(${idx})">
+          <div>
+            <strong>Factura ${r.folio || '—'} · ${r.proveedor_nombre || 'Proveedor no identificado'}</strong>
+            <div class="hint">${r.fecha} · ${r.productos_total} producto${r.productos_total===1?'':'s'} · ${estadoTexto}</div>
+          </div>
+          <span id="recepcion-chevron-${idx}">▼</span>
+        </div>
+        <div class="recepcion-reciente-body" id="recepcion-body-${idx}" style="display:none;padding:0 12px 12px;">
+          <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Estado</th></tr></thead><tbody>${lineasHtml}</tbody></table>
+          <div class="form-actions" style="margin-top:10px;">
+            <button class="btn btn-ghost" onclick="prepararCompletarRecepcion(${idx})">+ Agregar producto faltante</button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleRecepcionReciente(idx) {
+  const body = document.getElementById('recepcion-body-' + idx);
+  const chevron = document.getElementById('recepcion-chevron-' + idx);
+  if (!body) return;
+  const abierto = body.style.display === 'block';
+  body.style.display = abierto ? 'none' : 'block';
+  if (chevron) chevron.textContent = abierto ? '▼' : '▲';
+}
+
+/** "Ver/completar": precarga el encabezado de la MISMA factura en el
+ * formulario de Nueva Recepción -- el trabajador solo agrega el
+ * producto que falta y presiona "Registrar recepción" de siempre. El
+ * backend (112) detecta que la factura ya existe y agrega SOLO lo
+ * nuevo -- nunca crea una segunda factura. El trabajador nunca ve
+ * movimiento_id, idempotency_key, Core ni bridge. */
+async function prepararCompletarRecepcion(idx) {
+  const r = DB.recepcionesRecientes[idx];
+  if (!r) return;
+  const fechaEl = document.getElementById('rec-fecha');
+  if (fechaEl) fechaEl.value = r.fecha;
+  const tipoEl = document.getElementById('rec-tipo-documento');
+  if (tipoEl) tipoEl.value = r.tipo_documento;
+  const folioEl = document.getElementById('rec-folio');
+  if (folioEl) folioEl.value = r.folio;
+  if (typeof cargarYPoblarProveedores === 'function') {
+    await cargarYPoblarProveedores();
+  }
+  const provEl = document.getElementById('rec-proveedor');
+  if (provEl && r.proveedor_id) provEl.value = r.proveedor_id;
+  if (typeof verificarMatchRCV === 'function') verificarMatchRCV();
+  document.getElementById('rec-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  toast('Factura ' + r.folio + ' cargada -- agrega el producto que falta y presiona "Registrar recepción".');
 }
 
 // ══════════════════════════════════════════════════
@@ -4201,6 +4354,13 @@ async function bajarDatosDesdeSheets(local) {
     // nunca se propagaba a este perfil.
     await cargarOcultos();
     await cargarTrabajadores();
+    // Sprint Recepciones documentadas (112): stock canonico y
+    // recepciones recientes por local -- se omite en la vista "todos
+    // los locales" (Jefe), donde el calculo legado sigue de respaldo.
+    if (local) {
+      await cargarStockCanonico(local);
+      await cargarRecepcionesRecientes(local);
+    }
     const hayFoco = document.activeElement &&
       ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
     if (!hayFoco) {
