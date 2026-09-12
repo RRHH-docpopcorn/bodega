@@ -892,6 +892,9 @@
       </div>
     </div>
 
+    <div class="section-title" style="margin-top:22px;">Ingresos sin documento</div>
+    <div class="section-sub">Boletas, ajustes u otro ingreso registrado sin factura de proveedor -- las recepciones con factura se muestran arriba, en "Recepciones recientes".</div>
+
     <div class="filters">
       <select onchange="filtrarIngresos()" id="filt-ing-local">
         <option value="">Todos los locales</option>
@@ -1957,20 +1960,38 @@ function renderRecepcionesRecientes() {
   }
   cont.innerHTML = DB.recepcionesRecientes.map((r, idx) => {
     const estadoTexto = r.estado_documental === 'VINCULADO' ? '✓ En RCV' : '○ Pendiente RCV';
-    const lineasHtml = (r.lineas || []).map(l =>
-      `<tr><td>${l.articulo_nombre}${l.es_complemento ? ' <span class="chip" title="Agregado después, en un segundo evento -- misma factura">(agregado después)</span>' : ''}</td><td>${l.cantidad_original} ${l.unidad_codigo}</td><td>Recibido</td></tr>`
-    ).join('');
+    // Sprint 117: responsable REAL del primer evento (nunca el último,
+    // nunca auth.uid(), nunca la cuenta técnica de sincronización) --
+    // si genuinamente no existe, se dice explícitamente.
+    const responsableIngreso = r.responsable_ingreso_nombre || 'Responsable no identificado';
+    // Cada evento físico (recepción original + complementos, si los
+    // hay) se muestra por separado, con SU PROPIO responsable -- nunca
+    // se inventa el de un complemento copiando el de la original.
+    const eventosHtml = (r.eventos || []).map(ev => {
+      const titulo = ev.es_complemento ? 'COMPLEMENTO' : 'RECEPCIÓN ORIGINAL';
+      const responsableEvento = ev.responsable_informado || 'Responsable no identificado';
+      const lineasHtml = (ev.lineas || []).map(l =>
+        `<li>${l.articulo_nombre} · ${l.cantidad_original} ${l.unidad_codigo}</li>`
+      ).join('');
+      return `
+        <div class="recepcion-evento" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border,#333);">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--text-muted);">${titulo}</div>
+          <div class="hint">Responsable: ${responsableEvento}</div>
+          <ul style="margin:6px 0 0;padding-left:18px;">${lineasHtml}</ul>
+        </div>`;
+    }).join('');
     return `
       <div class="recepcion-reciente-item" style="border:1px solid var(--border,#333);border-radius:8px;margin-bottom:8px;overflow:hidden;">
         <div class="recepcion-reciente-head" style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRecepcionReciente(${idx})">
           <div>
             <strong>Factura ${r.folio || '—'} · ${r.proveedor_nombre || 'Proveedor no identificado'}</strong>
             <div class="hint">${r.fecha} · ${r.productos_total} producto${r.productos_total===1?'':'s'} · ${estadoTexto}</div>
+            <div class="hint">Ingresada por: ${responsableIngreso}</div>
           </div>
           <span id="recepcion-chevron-${idx}">▼</span>
         </div>
         <div class="recepcion-reciente-body" id="recepcion-body-${idx}" style="display:none;padding:0 12px 12px;">
-          <table><thead><tr><th>Producto</th><th>Cantidad</th><th>Estado</th></tr></thead><tbody>${lineasHtml}</tbody></table>
+          ${eventosHtml}
           <div class="form-actions" style="margin-top:10px;">
             <button class="btn btn-ghost" onclick="prepararCompletarRecepcion(${idx})">+ Agregar producto faltante</button>
           </div>
