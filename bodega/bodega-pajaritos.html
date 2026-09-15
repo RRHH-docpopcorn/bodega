@@ -2704,6 +2704,18 @@ function generarConteoInventario(prefix) {
   setTimeout(() => tbody.querySelector('.conteo-input')?.focus(), 100);
 }
 
+// Sprint Migración de Conteos a Core (132): la escritura PRIMARIA del
+// conteo ya NO es sbUpsertMany contra inventario/inventario_local --
+// es registrar_conteo_operativo_local (RPC canónica, otorgada a anon,
+// crea/reanuda + registra líneas + aprueba en Core en una sola
+// llamada). Core es la única condición de éxito: solo se muestra
+// "Conteo guardado correctamente" si esa RPC responde bien. La
+// conversión de decimales (ej. Maíz Mushroom 0,5 SACO) y la
+// convergencia de presentaciones (ej. Azúcar / Azúcar Saco blanco) NO
+// se duplican aquí -- las resuelve enteramente el backend con
+// conversiones_articulos ya confirmadas, nunca inventadas. El
+// trabajador sigue haciendo exactamente lo mismo: Generar conteo ->
+// ingresar cantidades -> elegir responsable -> Guardar, sin login.
 async function guardarConteoMasivo(prefix, tabla) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
@@ -2715,11 +2727,13 @@ async function guardarConteoMasivo(prefix, tabla) {
 
   const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
 
-  const records = [];
+  const lineasCore = [];
+  const records = []; // legacy transitorio -- solo lectura de otras pantallas, ver nota más abajo.
   inputs.forEach(inp => {
     const val = parseFloat(inp.value);
     if (!isNaN(val) && val >= 0) {
       const obsEl = inp.closest('tr').querySelector('.conteo-obs');
+      lineasCore.push({ insumo_id: inp.dataset.id, cantidad: val });
       records.push({
         id: uid(), fecha, local,
         insumoId: inp.dataset.id,
@@ -2731,32 +2745,68 @@ async function guardarConteoMasivo(prefix, tabla) {
     }
   });
 
-  if (records.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
+  if (lineasCore.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
 
   const btn = document.querySelector(`#${prefix}-conteo-wrap .btn-primary`);
   const btnTextoOriginal = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; } // evita doble click mientras se guarda.
 
-  // IMPORTANTE: se espera la respuesta real de Supabase antes de decir "guardado".
-  // Si falla, NO se actualiza el estado local ni se muestra mensaje de éxito,
-  // y los valores ingresados se mantienen en pantalla para reintentar.
+  const ubicacion = tabla === 'inventario' ? 'BODEGA' : 'LOCAL';
+
+  // IMPORTANTE: se espera la respuesta real de Core (registrar_conteo_
+  // operativo_local) antes de decir "guardado". Si falla, NO se
+  // actualiza el estado local, NO se escribe en legacy, y NO se
+  // muestra éxito -- los valores ingresados se mantienen en pantalla
+  // para reintentar.
   try {
-    const resp = await sbUpsertMany(tabla, records);
+    const resultado = await sbRpc('registrar_conteo_operativo_local', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha,
+      p_responsable_informado: responsable,
+      p_lineas: lineasCore,
+      p_observacion: null
+    });
+    const fila = Array.isArray(resultado) ? resultado[0] : resultado;
+    if (!fila || !fila.estado_resultado) {
+      throw new Error('Respuesta inesperada de Core -- no se pudo confirmar el guardado.');
+    }
 
-    DB[tabla] = DB[tabla] || [];
-    DB[tabla].push(...records);
-    guardarDB(tabla);
-    // Render inmediato: un conteo masivo (bodega o local) puede redefinir
-    // el ancla de calcularStockVivo/calcularStockLocal para varios
-    // insumos a la vez (ver nota equivalente en guardarIngreso).
+    if (fila.estado_resultado === 'YA_APROBADO') {
+      toast(`⚠️ El conteo de ${local} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'}) del ${fecha} ya estaba guardado y aprobado -- no se modifica. Avisa a un administrador si hay que corregirlo.`, true);
+      return;
+    }
+
+    if (fila.articulos_omitidos && fila.articulos_omitidos.length > 0) {
+      const nombres = fila.articulos_omitidos.map(a => a.nombre).join(', ');
+      toast(`⚠️ Se guardaron ${fila.n_lineas} artículos; ${fila.articulos_omitidos.length} quedaron SIN registrar por falta de conversión confirmada: ${nombres}. Avisa a administración.`, true);
+    } else {
+      // Confirmación visible SOLO porque Core ya respondió bien.
+      toast(`✅ Conteo guardado en Core — ${local} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'}) ${fecha} · ${responsable} · ${fila.n_lineas} artículo(s)`);
+    }
+
+    // Legacy transitorio (sección 7 del sprint): sincronización de
+    // MEJOR ESFUERZO hacia inventario/inventario_local, DESPUÉS de que
+    // Core ya quedó guardado -- solo para que la tabla histórica de
+    // esta misma página (pestaña "Inventario Bodega/Local") no quede
+    // vacía mientras esa vista migra a Core. Un fallo aquí NUNCA
+    // revierte ni oculta el éxito ya confirmado en Core arriba.
+    try {
+      await sbUpsertMany(tabla, records);
+      DB[tabla] = DB[tabla] || [];
+      DB[tabla].push(...records);
+      guardarDB(tabla);
+    } catch (eLegacy) {
+      console.warn('[legacy] Core quedó guardado correctamente; la copia de compatibilidad en ' + tabla + ' no se pudo sincronizar:', eLegacy.message);
+    }
+
     renderDashboard();
     renderStock();
     document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
     if (tabla === 'inventario') filtrarInventario();
     else filtrarInventarioLocal();
-    toast(`✅ ${records.length} insumos registrados en ${tabla === 'inventario' ? 'bodega' : 'local'}`);
   } catch (e) {
-    toast('❌ No se pudo guardar en Supabase (' + e.message + '). Tus datos siguen en pantalla, vuelve a presionar Guardar.', true);
+    toast('❌ No se pudo guardar en Core (' + e.message + '). Tus datos siguen en pantalla, vuelve a presionar Guardar.', true);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
   }
@@ -3754,6 +3804,13 @@ function borrarTodo() {
 // ══════════════════════════════════════════════════
 const SB_URL = 'https://krgvkyebbwdemdoqiljd.supabase.co';
 const SB_KEY = 'sb_publishable_-Rgafmg2iGPX3XXM0tpn7Q_eMzcOyxM';
+
+// 132: código real del local (locales.codigo) para
+// registrar_conteo_operativo_local -- Pajaritos en este archivo,
+// Plaza Oeste en bodega-plaza-oeste.html. Nunca se usa el texto
+// legado "Plaza Oeste"/"Pajaritos" directo contra Core -- el mapeo lo
+// hace la propia RPC a partir de este código.
+const LOCAL_CODIGO_CONTEO = 'PAJ';
 
 function setSyncStatus(status, msg) {
   const ind = document.getElementById('sync-indicator');
