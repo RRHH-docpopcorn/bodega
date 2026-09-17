@@ -1385,6 +1385,96 @@
   </div>
 </div>
 
+<!-- MODAL EDITAR / CORREGIR RECEPCIÓN -->
+<div class="modal-overlay" id="modal-corregir">
+  <div class="modal">
+    <div class="modal-title">
+      ✎ Editar / Corregir recepción
+      <button class="btn-icon" onclick="cerrarModalCorregir()">✕</button>
+    </div>
+
+    <div id="corr-paso-form">
+      <div class="field" style="margin-bottom:12px;">
+        <label>Proveedor</label>
+        <input type="text" id="corr-proveedor" placeholder="Proveedor">
+      </div>
+      <div class="form-grid cols2">
+        <div class="field" style="margin-bottom:12px;">
+          <label>Folio</label>
+          <input type="text" id="corr-folio" placeholder="Folio">
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label>Tipo documento</label>
+          <select id="corr-tipo-documento">
+            <option value="33">Factura Electrónica</option>
+            <option value="34">Factura No Afecta o Exenta</option>
+            <option value="46">Factura de Compra</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card-title" style="font-size:14px;margin-top:8px;">Artículos</div>
+      <div id="corr-lineas-lista"></div>
+
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-top:12px;flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:140px;margin-bottom:0;">
+          <label>Agregar artículo que faltaba</label>
+          <select id="corr-insumo-nuevo"></select>
+        </div>
+        <div class="field" style="width:90px;margin-bottom:0;">
+          <label>Cantidad</label>
+          <input type="number" id="corr-cantidad-nueva" min="0" step="any">
+        </div>
+        <button class="btn btn-ghost" onclick="corrAgregarLineaOmitida()">+ Agregar</button>
+      </div>
+
+      <div class="field" style="margin-top:16px;margin-bottom:12px;">
+        <label>Motivo de la corrección *</label>
+        <select id="corr-motivo">
+          <option value="">Seleccionar motivo</option>
+          <option value="CANTIDAD_INCORRECTA">Cantidad incorrecta</option>
+          <option value="ARTICULO_INCORRECTO">Artículo incorrecto</option>
+          <option value="UNIDAD_INCORRECTA">Unidad incorrecta</option>
+          <option value="PROVEEDOR_INCORRECTO">Proveedor incorrecto</option>
+          <option value="FOLIO_INCORRECTO">Folio incorrecto</option>
+          <option value="FECHA_INCORRECTA">Fecha incorrecta</option>
+          <option value="LINEA_OMITIDA">Faltaba un artículo</option>
+          <option value="LINEA_ERRONEA_ELIMINAR">Se ingresó un artículo que no correspondía</option>
+          <option value="OTRO">Otro motivo</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Detalle (opcional)</label>
+        <input type="text" id="corr-observacion" placeholder="Ej: el proveedor entregó 3 sacos, no 4">
+      </div>
+
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="corrPrevisualizar()">Revisar corrección</button>
+        <button class="btn btn-ghost" onclick="cerrarModalCorregir()">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="corr-paso-preview" style="display:none;">
+      <div class="card-title" style="font-size:14px;">Antes → Después</div>
+      <div id="corr-preview-cuerpo" style="font-size:13px;line-height:1.7;margin:10px 0;"></div>
+      <div class="hint">Esta corrección requiere la confirmación de un administrador -- no se aplica todavía.</div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="corrConfirmarYCopiar()">Guardar corrección</button>
+        <button class="btn btn-ghost" onclick="corrVolverAEditar()">Volver a editar</button>
+      </div>
+    </div>
+
+    <div id="corr-paso-listo" style="display:none;">
+      <div class="card-title" style="font-size:14px;">✓ Corrección preparada</div>
+      <p style="font-size:13px;">Esta corrección todavía no está aplicada. Muéstrale esta pantalla a un administrador, o compártela por WhatsApp -- debe finalizarla desde el Panel Administrativo, buscando la factura <b id="corr-listo-folio"></b>.</p>
+      <textarea id="corr-preview-cuerpo-texto" readonly style="width:100%;min-height:140px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:12px;"></textarea>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-ghost" onclick="cerrarModalCorregir()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════════════
 // TRABAJADORES (desde Airtable - actualizados 2026-07)
@@ -1969,6 +2059,7 @@ function renderRecepcionesRecientes() {
           ${eventosHtml}
           <div class="form-actions" style="margin-top:10px;">
             <button class="btn btn-ghost" onclick="prepararCompletarRecepcion(${idx})">+ Agregar producto faltante</button>
+            <button class="btn btn-ghost" onclick="prepararCorregirRecepcion(${idx})">✎ Editar / Corregir</button>
           </div>
         </div>
       </div>`;
@@ -2007,6 +2098,228 @@ async function prepararCompletarRecepcion(idx) {
   if (typeof verificarMatchRCV === 'function') verificarMatchRCV();
   document.getElementById('rec-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   toast('Factura ' + r.folio + ' cargada -- agrega el producto que falta y presiona "Registrar recepción".');
+}
+
+// ══════════════════════════════════════════════════
+// EDITAR / CORREGIR RECEPCIÓN -- AMPLIACIÓN hotfix Bodega (MPO+PAJ).
+// Corrige un dato mal ingresado en una factura YA confirmada (no un
+// producto físico que faltaba -- eso es "+ Agregar producto faltante",
+// arriba, y sigue intacto). Usa el MISMO catálogo de motivos que el
+// Panel Administrativo (migración 147, corregir_recepcion_compra).
+//
+// Bodega (MPO/PAJ) nunca tiene sesión de administrador real: estas
+// páginas usan siempre la misma llave pública (SB_KEY, ver sbFetch), sin
+// login individual -- así han funcionado siempre y esto NO cambia.
+// corregir_recepcion_compra exige un administrador autenticado
+// (usuario_actual_es_administrador()) y el propio GRANT de Postgres la
+// revoca para "anon" -- ninguna página local puede ejecutarla nunca,
+// aunque quisiera. Por diseño, esta pantalla nunca intenta ejecutar la
+// corrección: solo la COMPONE (mismos campos que usa un administrador) y
+// entrega un resumen en lenguaje simple para que un administrador la
+// finalice desde el Panel Administrativo (pestaña "Recepciones de
+// Compra"), buscando la factura por folio. Nunca se muestran términos
+// técnicos (RPC, reversa, delta, Core) al trabajador.
+// ══════════════════════════════════════════════════
+const MOTIVOS_CORRECCION = [
+  { valor: 'CANTIDAD_INCORRECTA', etiqueta: 'Cantidad incorrecta' },
+  { valor: 'ARTICULO_INCORRECTO', etiqueta: 'Artículo incorrecto' },
+  { valor: 'UNIDAD_INCORRECTA', etiqueta: 'Unidad incorrecta' },
+  { valor: 'PROVEEDOR_INCORRECTO', etiqueta: 'Proveedor incorrecto' },
+  { valor: 'FOLIO_INCORRECTO', etiqueta: 'Folio incorrecto' },
+  { valor: 'FECHA_INCORRECTA', etiqueta: 'Fecha incorrecta' },
+  { valor: 'LINEA_OMITIDA', etiqueta: 'Faltaba un artículo' },
+  { valor: 'LINEA_ERRONEA_ELIMINAR', etiqueta: 'Se ingresó un artículo que no correspondía' },
+  { valor: 'OTRO', etiqueta: 'Otro motivo' },
+];
+
+let correccionActual = null;
+
+// Une las líneas de TODOS los eventos físicos de la factura (original +
+// complementos) por artículo/unidad -- la corrección se hace sobre el
+// estado vigente actual, nunca sobre un evento aislado.
+function netearLineasRecepcion(r) {
+  const mapa = new Map();
+  (r.eventos || []).forEach(ev => {
+    (ev.lineas || []).forEach(l => {
+      const key = l.articulo_nombre + '||' + l.unidad_codigo;
+      const cantidad = Number(l.cantidad_original) || 0;
+      const prev = mapa.get(key);
+      if (prev) prev.cantidadOriginal += cantidad;
+      else mapa.set(key, { articuloNombre: l.articulo_nombre, unidad: l.unidad_codigo, cantidadOriginal: cantidad });
+    });
+  });
+  return [...mapa.values()];
+}
+
+function poblarInsumosCorreccion() {
+  const sel = document.getElementById('corr-insumo-nuevo');
+  if (!sel) return;
+  const local = perfilActual?.local || 'Pajaritos';
+  sel.innerHTML = '<option value="">Seleccionar producto</option>';
+  DB.insumos.forEach(ins => {
+    if (ins.activo === false) return;
+    if (ins.local !== local && ins.local !== 'ambos') return;
+    sel.innerHTML += `<option value="${ins.id}">${ins.nombre} (${ins.unidad})</option>`;
+  });
+}
+
+function prepararCorregirRecepcion(idx) {
+  const r = DB.recepcionesRecientes[idx];
+  if (!r) return;
+  const lineas = netearLineasRecepcion(r).map(l => ({ ...l, cantidadNueva: l.cantidadOriginal, eliminar: false, esNueva: false }));
+  correccionActual = {
+    documentoIdentidadKey: r.documento_identidad_key,
+    folio: r.folio || '', proveedorNombre: r.proveedor_nombre || '', tipoDocumento: r.tipo_documento || '',
+    lineas,
+  };
+  renderModalCorregir();
+  document.getElementById('modal-corregir').classList.add('open');
+}
+
+function renderModalCorregir() {
+  if (!correccionActual) return;
+  document.getElementById('corr-proveedor').value = correccionActual.proveedorNombre;
+  document.getElementById('corr-folio').value = correccionActual.folio;
+  document.getElementById('corr-tipo-documento').value = correccionActual.tipoDocumento;
+  document.getElementById('corr-motivo').value = '';
+  document.getElementById('corr-observacion').value = '';
+  poblarInsumosCorreccion();
+  document.getElementById('corr-cantidad-nueva').value = '';
+  renderCorrLineasTabla();
+  document.getElementById('corr-paso-form').style.display = '';
+  document.getElementById('corr-paso-preview').style.display = 'none';
+  document.getElementById('corr-paso-listo').style.display = 'none';
+}
+
+function renderCorrLineasTabla() {
+  const cont = document.getElementById('corr-lineas-lista');
+  if (!cont || !correccionActual) return;
+  if (correccionActual.lineas.length === 0) {
+    cont.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Sin artículos.</p>';
+    return;
+  }
+  cont.innerHTML = correccionActual.lineas.map((l, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);${l.eliminar ? 'opacity:.45;' : ''}">
+      <span style="flex:1;font-size:13px;">${l.articuloNombre}${l.eliminar ? ' <b>(se elimina)</b>' : ''}</span>
+      <input type="number" min="0" step="any" value="${l.cantidadNueva}" ${l.eliminar ? 'disabled' : ''}
+        style="width:80px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:6px;color:var(--text);text-align:right;"
+        onchange="corrActualizarCantidad(${i}, this.value)">
+      <span style="width:44px;font-size:12px;color:var(--text-muted);">${l.unidad}</span>
+      <button class="btn-icon" title="${l.eliminar ? 'Deshacer' : 'Eliminar línea'}" onclick="corrToggleEliminarLinea(${i})">${l.eliminar ? '↩' : '🗑'}</button>
+    </div>
+  `).join('');
+}
+
+function corrActualizarCantidad(i, val) {
+  const n = parseFloat(val);
+  correccionActual.lineas[i].cantidadNueva = isNaN(n) ? 0 : n;
+}
+
+function corrToggleEliminarLinea(i) {
+  correccionActual.lineas[i].eliminar = !correccionActual.lineas[i].eliminar;
+  renderCorrLineasTabla();
+}
+
+function corrAgregarLineaOmitida() {
+  const insumoId = document.getElementById('corr-insumo-nuevo').value;
+  const cantidad = parseFloat(document.getElementById('corr-cantidad-nueva').value);
+  const ins = getInsumo(insumoId);
+  if (!ins || !cantidad || cantidad <= 0) { toast('⚠️ Selecciona un producto y una cantidad mayor a cero', true); return; }
+  correccionActual.lineas.push({ articuloNombre: ins.nombre, unidad: ins.unidad, cantidadOriginal: 0, cantidadNueva: cantidad, eliminar: false, esNueva: true });
+  document.getElementById('corr-insumo-nuevo').value = '';
+  document.getElementById('corr-cantidad-nueva').value = '';
+  renderCorrLineasTabla();
+}
+
+function corrCalcularCambiosLinea() {
+  return correccionActual.lineas.filter(l => l.eliminar || l.esNueva || Number(l.cantidadNueva) !== Number(l.cantidadOriginal));
+}
+
+function corrVolverAEditar() {
+  document.getElementById('corr-paso-form').style.display = '';
+  document.getElementById('corr-paso-preview').style.display = 'none';
+}
+
+function corrPrevisualizar() {
+  const motivoSel = document.getElementById('corr-motivo').value;
+  if (!motivoSel) { toast('⚠️ Selecciona el motivo de la corrección', true); return; }
+  const folioNuevo = document.getElementById('corr-folio').value.trim();
+  const proveedorNuevo = document.getElementById('corr-proveedor').value.trim();
+  const tipoDocNuevo = document.getElementById('corr-tipo-documento').value;
+  const cambiosLinea = corrCalcularCambiosLinea();
+  const cambioFolio = folioNuevo !== correccionActual.folio;
+  const cambioProveedor = proveedorNuevo !== correccionActual.proveedorNombre;
+  const cambioTipoDoc = tipoDocNuevo !== correccionActual.tipoDocumento;
+  if (cambiosLinea.length === 0 && !cambioFolio && !cambioProveedor && !cambioTipoDoc) {
+    toast('⚠️ No hay ningún cambio para corregir', true); return;
+  }
+  correccionActual.motivoCodigo = motivoSel;
+  correccionActual.motivoObservacion = document.getElementById('corr-observacion').value.trim();
+  correccionActual.folioNuevo = folioNuevo;
+  correccionActual.proveedorNuevo = proveedorNuevo;
+  correccionActual.tipoDocNuevo = tipoDocNuevo;
+
+  let html = '';
+  if (cambioFolio) html += `<div>📄 Folio: <b>${correccionActual.folio || '—'}</b> → <b>${folioNuevo || '—'}</b></div>`;
+  if (cambioProveedor) html += `<div>🏢 Proveedor: <b>${correccionActual.proveedorNombre || '—'}</b> → <b>${proveedorNuevo || '—'}</b></div>`;
+  if (cambioTipoDoc) html += `<div>🧾 Tipo documento: <b>${correccionActual.tipoDocumento || '—'}</b> → <b>${tipoDocNuevo || '—'}</b></div>`;
+  if (cambiosLinea.length > 0) {
+    html += '<div style="margin-top:8px;font-weight:700;">Artículos</div>';
+    cambiosLinea.forEach(l => {
+      if (l.eliminar) html += `<div>🗑 ${l.articuloNombre}: ${l.cantidadOriginal} ${l.unidad} → se elimina (stock -${l.cantidadOriginal} ${l.unidad})</div>`;
+      else if (l.esNueva) html += `<div>➕ ${l.articuloNombre}: no estaba → ${l.cantidadNueva} ${l.unidad} (stock +${l.cantidadNueva} ${l.unidad})</div>`;
+      else {
+        const delta = l.cantidadNueva - l.cantidadOriginal;
+        html += `<div>✎ ${l.articuloNombre}: ${l.cantidadOriginal} ${l.unidad} → ${l.cantidadNueva} ${l.unidad} (stock ${delta > 0 ? '+' : ''}${delta} ${l.unidad})</div>`;
+      }
+    });
+  }
+  document.getElementById('corr-preview-cuerpo').innerHTML = html;
+  document.getElementById('corr-paso-form').style.display = 'none';
+  document.getElementById('corr-paso-preview').style.display = '';
+}
+
+function corrGenerarResumenTexto() {
+  const c = correccionActual;
+  const motivo = MOTIVOS_CORRECCION.find(m => m.valor === c.motivoCodigo);
+  let texto = `Corrección de factura ${c.folio || '(sin folio)'} · ${c.proveedorNombre || 'proveedor no identificado'}\n`;
+  texto += `Local: ${LOCAL_CODIGO_CONTEO}\n`;
+  texto += `Motivo: ${motivo ? motivo.etiqueta : c.motivoCodigo}\n`;
+  if (c.motivoObservacion) texto += `Detalle: ${c.motivoObservacion}\n`;
+  if (c.folioNuevo !== c.folio) texto += `Folio nuevo: ${c.folioNuevo}\n`;
+  if (c.proveedorNuevo !== c.proveedorNombre) texto += `Proveedor nuevo: ${c.proveedorNuevo}\n`;
+  if (c.tipoDocNuevo !== c.tipoDocumento) texto += `Tipo documento nuevo: ${c.tipoDocNuevo}\n`;
+  const cambios = corrCalcularCambiosLinea();
+  if (cambios.length > 0) {
+    texto += 'Artículos:\n';
+    cambios.forEach(l => {
+      if (l.eliminar) texto += `  - Eliminar: ${l.articuloNombre} (${l.cantidadOriginal} ${l.unidad})\n`;
+      else if (l.esNueva) texto += `  - Agregar: ${l.articuloNombre} · ${l.cantidadNueva} ${l.unidad}\n`;
+      else texto += `  - ${l.articuloNombre}: ${l.cantidadOriginal} → ${l.cantidadNueva} ${l.unidad}\n`;
+    });
+  }
+  texto += `Solicitado por: ${perfilActual?.nombre || 'trabajador de bodega'}\n`;
+  texto += `Fecha: ${new Date().toLocaleString('es-CL')}`;
+  return texto;
+}
+
+async function corrConfirmarYCopiar() {
+  const texto = corrGenerarResumenTexto();
+  document.getElementById('corr-listo-folio').textContent = correccionActual.folio || '(sin folio)';
+  document.getElementById('corr-preview-cuerpo-texto').value = texto;
+  try {
+    await navigator.clipboard.writeText(texto);
+    toast('📋 Resumen copiado. Un administrador debe finalizarlo en el Panel Administrativo.');
+  } catch (e) {
+    toast('Muestra esta pantalla a un administrador para finalizar la corrección.', true);
+  }
+  document.getElementById('corr-paso-preview').style.display = 'none';
+  document.getElementById('corr-paso-listo').style.display = '';
+}
+
+function cerrarModalCorregir() {
+  document.getElementById('modal-corregir').classList.remove('open');
+  correccionActual = null;
 }
 
 function estadoSemaforo(ins, stockEst) {
