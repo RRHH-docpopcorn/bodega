@@ -1475,6 +1475,69 @@
   </div>
 </div>
 
+<!-- MODAL TRASPASO ENTRE LOCALES -->
+<div class="modal-overlay" id="modal-traspaso">
+  <div class="modal">
+    <div class="modal-title">
+      ↔ Traspaso a otro local
+      <button class="btn-icon" onclick="cerrarModalTraspaso()">✕</button>
+    </div>
+
+    <div id="traspaso-cargando" style="display:none;padding:20px 0;text-align:center;color:var(--text-muted);">Verificando este equipo...</div>
+
+    <div id="traspaso-paso-no-autorizado" style="display:none;">
+      <p style="font-size:14px;">Este equipo necesita autorización para realizar traspasos.</p>
+      <p style="font-size:32px;text-align:center;letter-spacing:6px;font-weight:700;margin:16px 0;" id="traspaso-codigo-espera">------</p>
+      <p style="font-size:14px;">Envía este código al administrador. No hace falta nada más -- el resto de tus funciones de Bodega sigue funcionando igual mientras tanto.</p>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-ghost" onclick="cerrarModalTraspaso()">Cerrar</button>
+      </div>
+    </div>
+
+    <div id="traspaso-paso-form" style="display:none;">
+      <div class="field" style="margin-bottom:12px;">
+        <label>Desde</label>
+        <input type="text" id="traspaso-origen" disabled>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Hacia</label>
+        <select id="traspaso-destino"></select>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Artículo</label>
+        <select id="traspaso-insumo"></select>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Cantidad</label>
+        <input type="number" id="traspaso-cantidad" min="0" step="any">
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Responsable</label>
+        <select id="traspaso-responsable">
+          <option value="">Seleccionar responsable</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:12px;">
+        <label>Observación (opcional)</label>
+        <input type="text" id="traspaso-observacion">
+      </div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" id="traspaso-btn-confirmar" onclick="confirmarTraspaso()">Confirmar traspaso</button>
+        <button class="btn btn-ghost" onclick="cerrarModalTraspaso()">Cancelar</button>
+      </div>
+    </div>
+
+    <div id="traspaso-paso-listo" style="display:none;">
+      <div class="card-title" style="font-size:14px;">✓ Traspaso registrado correctamente</div>
+      <p style="font-size:14px;line-height:1.7;" id="traspaso-resumen"></p>
+      <div class="form-actions" style="margin-top:16px;">
+        <button class="btn btn-primary" onclick="cerrarModalTraspaso()">Listo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 // ══════════════════════════════════════════════════
 // TRABAJADORES (desde Airtable - actualizados 2026-07)
@@ -2322,6 +2385,162 @@ function cerrarModalCorregir() {
   correccionActual = null;
 }
 
+// ══════════════════════════════════════════════════
+// TRASPASO ENTRE LOCALES -- identidad técnica invisible (migración 150).
+// El trabajador NUNCA ve login, JWT, RLS ni UUID. El dispositivo obtiene
+// una sesión anónima REAL de Supabase Auth (auth.uid() real) apenas
+// carga la página -- eso es solo IDENTIDAD, nunca autorización por sí
+// sola (ver bodega_dispositivos_autorizados, 150). Si un administrador
+// ya autorizó este equipo desde el Dashboard, puede iniciar un traspaso
+// canónico (un único movimiento, salida en su local + entrada en el
+// destino, atómico) -- nunca el ajuste unilateral que causó el error
+// del 16-sep. Si no está autorizado, se le muestra un código de 6
+// dígitos para pedirle a un administrador que lo autorice -- nunca un
+// error técnico.
+// ══════════════════════════════════════════════════
+let supabaseTraspaso = null;
+let miDispositivoBodega = null;
+let traspasoIdempotencyKey = null;
+let traspasoPrefill = null;
+const LOCALES_TRASPASO = [
+  { codigo: 'MPO', nombre: 'Mall Plaza Oeste' },
+  { codigo: 'PAJ', nombre: 'Líder Pajaritos' },
+];
+
+async function inicializarSesionDispositivoBodega() {
+  try {
+    if (!window.supabase || !window.supabase.createClient) return;
+    supabaseTraspaso = window.supabase.createClient(SB_URL, SB_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: 'sb-bodega-dispositivo-auth' }
+    });
+    const actual = (await supabaseTraspaso.auth.getSession()).data.session;
+    if (!actual) await supabaseTraspaso.auth.signInAnonymously();
+  } catch (e) {
+    console.warn('[traspaso] no se pudo iniciar la sesion tecnica del dispositivo', e);
+  }
+}
+inicializarSesionDispositivoBodega();
+
+async function consultarMiDispositivoBodega() {
+  if (!supabaseTraspaso) return null;
+  try {
+    const { data, error } = await supabaseTraspaso.rpc('mi_dispositivo_bodega_estado');
+    if (error) throw error;
+    return (data && data[0]) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function abrirModalTraspaso(prefill) {
+  traspasoPrefill = prefill || null;
+  document.getElementById('modal-traspaso').classList.add('open');
+  document.getElementById('traspaso-paso-no-autorizado').style.display = 'none';
+  document.getElementById('traspaso-paso-form').style.display = 'none';
+  document.getElementById('traspaso-paso-listo').style.display = 'none';
+  document.getElementById('traspaso-cargando').style.display = '';
+
+  miDispositivoBodega = await consultarMiDispositivoBodega();
+  document.getElementById('traspaso-cargando').style.display = 'none';
+
+  if (!miDispositivoBodega) {
+    document.getElementById('traspaso-paso-no-autorizado').style.display = '';
+    document.getElementById('traspaso-codigo-espera').textContent = '------';
+    try {
+      const sugerido = (typeof LOCAL_CODIGO_CONTEO !== 'undefined') ? LOCAL_CODIGO_CONTEO : null;
+      const { data, error } = await supabaseTraspaso.rpc('solicitar_autorizacion_dispositivo_bodega', { p_local_sugerido_codigo: sugerido });
+      if (error) throw error;
+      const fila = data && data[0];
+      if (fila) document.getElementById('traspaso-codigo-espera').textContent = fila.codigo;
+    } catch (e) {
+      console.warn('[traspaso] no se pudo solicitar autorizacion', e);
+    }
+    return;
+  }
+
+  document.getElementById('traspaso-paso-form').style.display = '';
+  document.getElementById('traspaso-origen').value = miDispositivoBodega.local_codigo + ' · ' + miDispositivoBodega.local_nombre;
+  poblarDestinosTraspaso();
+  poblarInsumosTraspaso();
+  poblarResponsable('traspaso-responsable', miDispositivoBodega.local_codigo === 'MPO' ? 'Plaza Oeste' : 'Pajaritos');
+  document.getElementById('traspaso-cantidad').value = '';
+  document.getElementById('traspaso-observacion').value = '';
+  if (traspasoPrefill) {
+    if (traspasoPrefill.insumoId) document.getElementById('traspaso-insumo').value = traspasoPrefill.insumoId;
+    if (traspasoPrefill.cantidad) document.getElementById('traspaso-cantidad').value = traspasoPrefill.cantidad;
+    if (traspasoPrefill.responsable) document.getElementById('traspaso-responsable').value = traspasoPrefill.responsable;
+    if (traspasoPrefill.obs) document.getElementById('traspaso-observacion').value = traspasoPrefill.obs;
+  }
+  traspasoIdempotencyKey = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('trsp-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+}
+
+function poblarDestinosTraspaso() {
+  const sel = document.getElementById('traspaso-destino');
+  sel.innerHTML = '';
+  LOCALES_TRASPASO.filter(l => l.codigo !== miDispositivoBodega.local_codigo).forEach(l => {
+    sel.innerHTML += `<option value="${l.codigo}">${l.codigo} · ${l.nombre}</option>`;
+  });
+}
+
+// Reutiliza DB.insumos (ya cargado por el resto de la página) -- solo
+// ofrece artículos con articulo_maestro_id Y unidad_captura_id
+// resueltos (091-096): sin esos dos ids no se puede traspasar de forma
+// segura contra Core, y nunca se inventa una conversión.
+function poblarInsumosTraspaso() {
+  const sel = document.getElementById('traspaso-insumo');
+  const localLegado = miDispositivoBodega.local_codigo === 'MPO' ? 'Plaza Oeste' : 'Pajaritos';
+  sel.innerHTML = '<option value="">Seleccionar producto</option>';
+  DB.insumos.forEach(ins => {
+    if (ins.activo === false) return;
+    if (ins.local !== localLegado && ins.local !== 'ambos') return;
+    if (!ins.articulo_maestro_id || !ins.unidad_captura_id) return;
+    sel.innerHTML += `<option value="${ins.id}">${ins.nombre} (${ins.unidad})</option>`;
+  });
+}
+
+function cerrarModalTraspaso() {
+  document.getElementById('modal-traspaso').classList.remove('open');
+  traspasoPrefill = null;
+}
+
+async function confirmarTraspaso() {
+  const destino = document.getElementById('traspaso-destino').value;
+  const insumoId = document.getElementById('traspaso-insumo').value;
+  const cantidad = parseFloat(document.getElementById('traspaso-cantidad').value);
+  const responsable = document.getElementById('traspaso-responsable').value.trim();
+  const observacion = document.getElementById('traspaso-observacion').value.trim();
+  const ins = getInsumo(insumoId);
+
+  if (!destino || !ins || !cantidad || cantidad <= 0 || !responsable) {
+    toast('⚠️ Completa artículo, cantidad y responsable', true); return;
+  }
+
+  const btn = document.getElementById('traspaso-btn-confirmar');
+  btn.disabled = true; btn.textContent = 'Registrando...';
+  try {
+    const { data, error } = await supabaseTraspaso.rpc('registrar_traspaso_bodega_dispositivo', {
+      p_local_destino_codigo: destino,
+      p_articulo_maestro_id: ins.articulo_maestro_id,
+      p_cantidad: cantidad,
+      p_unidad_id: ins.unidad_captura_id,
+      p_responsable_informado: responsable,
+      p_idempotency_key: traspasoIdempotencyKey,
+      p_observacion: observacion || null,
+    });
+    if (error) throw error;
+    const nombreDestino = (LOCALES_TRASPASO.find(l => l.codigo === destino) || {}).nombre || destino;
+    document.getElementById('traspaso-resumen').innerHTML =
+      `<b>${cantidad} ${ins.unidad}</b> ${ins.nombre}<br>${miDispositivoBodega.local_codigo} → ${destino} · ${nombreDestino}<br>Responsable: ${responsable}`;
+    document.getElementById('traspaso-paso-form').style.display = 'none';
+    document.getElementById('traspaso-paso-listo').style.display = '';
+    if (typeof bajarDatosDesdeSheets === 'function') setTimeout(() => bajarDatosDesdeSheets(perfilActual?.local || ''), 1500);
+  } catch (e) {
+    toast('❌ No se pudo registrar el traspaso (' + e.message + ')', true);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Confirmar traspaso';
+  }
+}
+
 function estadoSemaforo(ins, stockEst) {
   if (stockEst === null) return 'sin-ancla';
   if (stockEst <= ins.critico) return 'rojo';
@@ -2884,6 +3103,15 @@ async function guardarSalida() {
   const motivo = document.getElementById('sal-motivo').value;
   const obs = document.getElementById('sal-obs').value.trim();
   const ins = getInsumo(insumoId);
+
+  // 150: "Traspaso" ya NO crea una salida unilateral (esa ambigüedad
+  // causó que el traspaso PAJ->MPO del 16-sep quedara registrado solo
+  // del lado PAJ). Redirige siempre al flujo canónico -- un único
+  // movimiento con su propia entrada garantizada en el destino.
+  if (motivo === 'Traspaso') {
+    abrirModalTraspaso({ insumoId, cantidad: isNaN(cantidad) ? null : cantidad, responsable, obs });
+    return;
+  }
 
   if (!fecha || !local || !insumoId || !cantidad || !responsable || !motivo) {
     toast('⚠️ Completa todos los campos obligatorios', true); return;
