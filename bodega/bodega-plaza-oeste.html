@@ -3252,6 +3252,35 @@ function generarConteoInventario(prefix) {
 // conversiones_articulos ya confirmadas, nunca inventadas. El
 // trabajador sigue haciendo exactamente lo mismo: Generar conteo ->
 // ingresar cantidades -> elegir responsable -> Guardar, sin login.
+// Trazabilidad (155): petición de red INDEPENDIENTE del guardado real,
+// nunca bloquea ni oculta el resultado real -- si esto falla, solo se
+// pierde el registro de diagnóstico, jamás el guardado en sí.
+async function registrarIntentoConteo(ubicacion, fecha, responsable, resultado, exito, conteoId, mensaje) {
+  try {
+    await sbRpc('registrar_intento_conteo_operativo', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha,
+      p_responsable_informado: responsable,
+      p_resultado: resultado,
+      p_exito: exito,
+      p_conteo_id: conteoId || null,
+      p_mensaje: mensaje || null
+    });
+  } catch (eTraza) {
+    console.warn('[trazabilidad] no se pudo registrar el intento (no afecta el guardado real):', eTraza.message);
+  }
+}
+
+// 155: UNA sola RPC es responsable de Core Y de la compatibilidad
+// legado, dentro de la MISMA transacción atómica -- el navegador ya NO
+// hace una segunda escritura independiente hacia inventario/
+// inventario_local (esa doble escritura era la fragilidad real: la
+// consistencia dependía de que el navegador lograra ejecutar dos
+// peticiones de red por separado). Si Core falla, no queda legado
+// huérfano -- si la copia legado falla, la RPC entera falla (nunca un
+// "éxito falso"). El trabajador solo ve "guardado" cuando el conteo
+// quedó realmente completo en el estado final esperado.
 async function guardarConteoMasivo(prefix, tabla) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
@@ -3264,7 +3293,7 @@ async function guardarConteoMasivo(prefix, tabla) {
   const inputs = document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`);
 
   const lineasCore = [];
-  const records = []; // legacy transitorio -- solo lectura de otras pantallas, ver nota más abajo.
+  const records = []; // solo para refrescar la vista local "Inventario Bodega/Local" de esta misma pantalla -- ya no se sube por separado, la RPC escribe legado server-side.
   inputs.forEach(inp => {
     const val = parseFloat(inp.value);
     if (!isNaN(val) && val >= 0) {
@@ -3290,10 +3319,9 @@ async function guardarConteoMasivo(prefix, tabla) {
   const ubicacion = tabla === 'inventario' ? 'BODEGA' : 'LOCAL';
 
   // IMPORTANTE: se espera la respuesta real de Core (registrar_conteo_
-  // operativo_local) antes de decir "guardado". Si falla, NO se
-  // actualiza el estado local, NO se escribe en legacy, y NO se
-  // muestra éxito -- los valores ingresados se mantienen en pantalla
-  // para reintentar.
+  // operativo_local) antes de decir "guardado". Si falla, NADA queda
+  // persistido (ni Core ni legado -- una sola transacción atómica), y
+  // los valores ingresados se mantienen en pantalla para reintentar.
   try {
     const resultado = await sbRpc('registrar_conteo_operativo_local', {
       p_local_codigo: LOCAL_CODIGO_CONTEO,
@@ -3310,6 +3338,7 @@ async function guardarConteoMasivo(prefix, tabla) {
 
     if (fila.estado_resultado === 'YA_APROBADO') {
       toast(`⚠️ El conteo de ${local} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'}) del ${fecha} ya estaba guardado y aprobado -- no se modifica. Avisa a un administrador si hay que corregirlo.`, true);
+      registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
       return;
     }
 
@@ -3317,24 +3346,19 @@ async function guardarConteoMasivo(prefix, tabla) {
       const nombres = fila.articulos_omitidos.map(a => a.nombre).join(', ');
       toast(`⚠️ Se guardaron ${fila.n_lineas} artículos; ${fila.articulos_omitidos.length} quedaron SIN registrar por falta de conversión confirmada: ${nombres}. Avisa a administración.`, true);
     } else {
-      // Confirmación visible SOLO porque Core ya respondió bien.
-      toast(`✅ Conteo guardado en Core — ${local} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'}) ${fecha} · ${responsable} · ${fila.n_lineas} artículo(s)`);
+      // Confirmación visible SOLO porque Core (y su compatibilidad
+      // legado, en la misma transacción) ya respondieron bien.
+      toast('✅ Inventario guardado correctamente');
     }
+    registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
 
-    // Legacy transitorio (sección 7 del sprint): sincronización de
-    // MEJOR ESFUERZO hacia inventario/inventario_local, DESPUÉS de que
-    // Core ya quedó guardado -- solo para que la tabla histórica de
-    // esta misma página (pestaña "Inventario Bodega/Local") no quede
-    // vacía mientras esa vista migra a Core. Un fallo aquí NUNCA
-    // revierte ni oculta el éxito ya confirmado en Core arriba.
-    try {
-      await sbUpsertMany(tabla, records);
-      DB[tabla] = DB[tabla] || [];
-      DB[tabla].push(...records);
-      guardarDB(tabla);
-    } catch (eLegacy) {
-      console.warn('[legacy] Core quedó guardado correctamente; la copia de compatibilidad en ' + tabla + ' no se pudo sincronizar:', eLegacy.message);
-    }
+    // Refresco de la vista local (pestaña "Inventario Bodega/Local" de
+    // esta misma pantalla) -- ya NO es una escritura a Supabase, la RPC
+    // de arriba ya dejó la copia legado real en la base. Esto es solo
+    // para que la tabla en pantalla se vea actualizada de inmediato.
+    DB[tabla] = DB[tabla] || [];
+    DB[tabla].push(...records);
+    guardarDB(tabla);
 
     renderDashboard();
     renderStock();
@@ -3342,7 +3366,8 @@ async function guardarConteoMasivo(prefix, tabla) {
     if (tabla === 'inventario') filtrarInventario();
     else filtrarInventarioLocal();
   } catch (e) {
-    toast('❌ No se pudo guardar en Core (' + e.message + '). Tus datos siguen en pantalla, vuelve a presionar Guardar.', true);
+    toast('❌ No se pudo guardar. Tus cantidades siguen en pantalla. Vuelve a intentar.', true);
+    registrarIntentoConteo(ubicacion, fecha, responsable, 'ERROR', false, null, e.message);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
   }
