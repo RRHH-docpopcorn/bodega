@@ -3200,6 +3200,44 @@ function filtrarSalidas() {
 // INVENTARIO MASIVO (Bodega y Local)
 // ══════════════════════════════════════════════
 
+// Agrupación VISUAL de balde+tapa (Sprint Compras Requeridas, cierre
+// final -- mismo criterio ya aplicado en Dashboard/Compras Requeridas,
+// agrupacionPackaging.ts). Balde y tapa SIGUEN siendo insumos
+// independientes: cada uno conserva su propia fila, su propio input,
+// su propio id, su propia línea en el conteo -- esto SOLO decide el
+// ORDEN de renderizado, nunca fusiona nada. NO toca
+// guardarConteoMasivo/registrar_conteo_operativo_local (155): esta
+// función solo produce el mismo array `insumos` reordenado, con el
+// mismo contenido exacto.
+const GRUPOS_VISUALES_ENVASES = [
+  { titulo: 'Balde 3L', nombres: ['Balde 3L', 'Tapa 3L'] },
+  { titulo: 'Balde 5L', nombres: ['Balde 5L', 'Tapa 5L'] },
+  { titulo: 'Big Tin / 13.5L', nombres: ['Tarros 13,5L', 'Tapa 13.5L'] },
+];
+
+function ordenarConGruposVisuales(insumosOrdenados) {
+  const porNombre = new Map(insumosOrdenados.map(ins => [ins.nombre, ins]));
+  const yaColocado = new Set();
+  const resultado = [];
+  insumosOrdenados.forEach(ins => {
+    if (yaColocado.has(ins.id)) return;
+    const grupo = GRUPOS_VISUALES_ENVASES.find(g => g.nombres.includes(ins.nombre));
+    if (!grupo) {
+      resultado.push(ins);
+      yaColocado.add(ins.id);
+      return;
+    }
+    grupo.nombres.forEach(nombre => {
+      const miembro = porNombre.get(nombre);
+      if (miembro && !yaColocado.has(miembro.id)) {
+        resultado.push(miembro);
+        yaColocado.add(miembro.id);
+      }
+    });
+  });
+  return resultado;
+}
+
 function generarConteoInventario(prefix) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
@@ -3211,9 +3249,9 @@ function generarConteoInventario(prefix) {
   }
 
   const tbody = document.getElementById(`${prefix}-conteo-tbody`);
-  const insumos = [...DB.insumos]
+  const insumos = ordenarConGruposVisuales([...DB.insumos]
     .filter(ins => ins.local === local && ins.activo !== false && !DB.stockOcultos.has(`${ins.id}|${local}`))
-    .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+    .sort((a,b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre)));
 
   if (insumos.length === 0) {
     toast('⚠️ Los insumos aún se están cargando, espera unos segundos e inténtalo de nuevo', true);
@@ -3221,11 +3259,17 @@ function generarConteoInventario(prefix) {
   }
 
   let catActual = '';
+  const gruposYaMarcados = new Set();
   let html = '';
   insumos.forEach(ins => {
     if (ins.categoria !== catActual) {
       catActual = ins.categoria;
       html += `<tr class="cat-header"><td colspan="5">${ICONOS_CAT[catActual] || '📦'} ${catActual}</td></tr>`;
+    }
+    const grupo = GRUPOS_VISUALES_ENVASES.find(g => g.nombres.includes(ins.nombre));
+    if (grupo && !gruposYaMarcados.has(grupo.titulo)) {
+      gruposYaMarcados.add(grupo.titulo);
+      html += `<tr><td colspan="5" style="padding:4px 8px 4px 20px;color:var(--text-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;">↳ ${grupo.titulo}</td></tr>`;
     }
     html += `<tr>
       <td style="color:var(--text-muted);font-size:12px;">${ins.categoria}</td>
