@@ -699,6 +699,20 @@
     <div class="section-title">Ingresos a bodega</div>
     <div class="section-sub">Registra lo que llega de proveedores</div>
 
+    <div class="card" id="tipo-recepcion-card">
+      <div class="card-title">Tipo de recepción</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>¿Cómo llegó esta mercadería?</label>
+          <select id="tipo-recepcion-select" onchange="cambiarTipoRecepcion(this.value)">
+            <option value="factura">Con factura/documento</option>
+            <option value="pendiente">Documento pendiente</option>
+            <option value="rendicion">Compra rendida por trabajador</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <div class="card" id="rec-card">
       <div class="card-title">📄 Nueva Recepción (factura)</div>
       <div class="section-sub">Flujo normal para mercadería de proveedor. Genera Aceite/Mantequilla/etc. + factura vinculada al RCV.</div>
@@ -795,6 +809,101 @@
       </div>
 
       <div id="rec-resultado" style="display:none;margin-top:14px;"></div>
+    </div>
+
+    <div class="card" id="rendicion-card" style="display:none;">
+      <div class="card-title">🧾 Compra rendida por trabajador</div>
+      <div class="section-sub">El trabajador pagó con su propio dinero -- nunca hay factura ni RCV. Queda registrada como "SIN DTE / RENDICIÓN" para reembolsarle después.</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>Fecha de la compra</label>
+          <input type="date" id="rnd-fecha">
+        </div>
+        <div class="field">
+          <label>Local</label>
+          <select id="rnd-local" onchange="poblarResponsable('rnd-responsable', this.value); poblarInsumosRendicion()">
+            <option value="">Seleccionar local</option>
+            <option value="Plaza Oeste">Plaza Oeste</option>
+            <option value="Pajaritos">Pajaritos</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Quién hizo la compra</label>
+          <input type="text" id="rnd-comprador" placeholder="Nombre de quien pagó">
+        </div>
+        <div class="field">
+          <label>Responsable que registra</label>
+          <select id="rnd-responsable">
+            <option value="">Seleccionar responsable</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Comercio</label>
+          <input type="text" id="rnd-comercio" placeholder="Ej: Ferretería Los Pinos">
+        </div>
+        <div class="field">
+          <label>Monto total</label>
+          <input type="number" id="rnd-monto" placeholder="0" min="0" step="1">
+        </div>
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Observación</label>
+          <input type="text" id="rnd-obs" placeholder="Opcional">
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top:18px;">Qué se compró</div>
+      <div class="form-grid cols2">
+        <div class="field">
+          <label>Producto (si es un artículo de bodega)</label>
+          <select id="rnd-insumo">
+            <option value="">Seleccionar producto</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Cantidad</label>
+          <input type="number" id="rnd-cantidad" placeholder="0" min="0" step="any">
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="agregarLineaRendicionArticulo()">+ Agregar artículo</button>
+      </div>
+
+      <div class="form-grid cols2" style="margin-top:10px;">
+        <div class="field" style="grid-column:1 / -1;">
+          <label>Otro gasto (no es un producto de bodega)</label>
+          <input type="text" id="rnd-concepto-desc" placeholder="Ej: flete, cinta adhesiva, servicio">
+        </div>
+        <div class="field">
+          <label>Monto de este gasto (opcional)</label>
+          <input type="number" id="rnd-concepto-monto" placeholder="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-actions" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="agregarLineaRendicionConcepto()">+ Agregar otro gasto</button>
+      </div>
+
+      <div class="table-wrap" style="margin-top:10px;">
+        <table>
+          <thead><tr><th>Detalle</th><th>Cantidad</th><th></th></tr></thead>
+          <tbody id="rnd-lineas-tbody"><tr><td colspan="3" class="no-data">Aún no agregas nada</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card-title" style="margin-top:18px;">Comprobante</div>
+      <div class="section-sub">Foto de la boleta/comprobante -- obligatorio. JPG, PNG o PDF, máximo 8 MB.</div>
+      <div class="form-actions">
+        <label class="btn btn-ghost" style="cursor:pointer;">
+          📷 Tomar/Subir foto
+          <input type="file" id="rnd-comprobante-input" accept="image/jpeg,image/png,application/pdf" capture="environment" style="display:none;" onchange="subirComprobanteRendicion(this)">
+        </label>
+      </div>
+      <div id="rnd-comprobante-estado" class="hint" style="margin-top:6px;"></div>
+
+      <div class="form-actions" style="margin-top:14px;">
+        <button class="btn btn-primary" id="rnd-registrar-btn" onclick="guardarCompraRendida()">✅ Registrar compra rendida</button>
+        <button class="btn btn-ghost" onclick="limpiarFormRendicion()">Limpiar</button>
+      </div>
+      <div id="rnd-resultado" style="display:none;margin-top:14px;"></div>
     </div>
 
     <div class="card" id="recepciones-recientes-card">
@@ -1739,7 +1848,8 @@ const DB = {
   // persistidos en localStorage (siempre frescos de Supabase, ver
   // cargarDB/guardarDB, que no los incluyen a proposito).
   stockCanonico: {},
-  recepcionesRecientes: []
+  recepcionesRecientes: [],
+  rendicionesRecientes: []
 };
 
 let globalLocal = ''; // '' = todos
@@ -2069,12 +2179,22 @@ function calcularStockVivo(insumoId, local) {
 // Nueva Recepcion, nunca crea una factura nueva.
 // ══════════════════════════════════════════════════
 async function cargarRecepcionesRecientes(local) {
-  if (!local) { DB.recepcionesRecientes = []; renderRecepcionesRecientes(); return; }
+  if (!local) { DB.recepcionesRecientes = []; DB.rendicionesRecientes = []; renderRecepcionesRecientes(); return; }
   try {
     DB.recepcionesRecientes = await sbRpc('listar_recepciones_bodega', { p_local_codigo: local, p_dias: 30 }) || [];
   } catch (e) {
     console.warn('[recepciones recientes] no se pudo cargar.', e);
     DB.recepcionesRecientes = [];
+  }
+  try {
+    // Compras Rendidas por Trabajador (168/169) -- fuente SEPARADA e
+    // independiente, nunca mezclada en listar_recepciones_bodega (112/
+    // 117, congelada). Se combina SOLO al renderizar, mas abajo -- sin
+    // UNION ni CREATE OR REPLACE sobre esa vista/funcion.
+    DB.rendicionesRecientes = await sbRpc('listar_rendiciones_bodega', { p_local_codigo: local, p_dias: 30 }) || [];
+  } catch (e) {
+    console.warn('[rendiciones recientes] no se pudo cargar.', e);
+    DB.rendicionesRecientes = [];
   }
   renderRecepcionesRecientes();
 }
@@ -2082,11 +2202,13 @@ async function cargarRecepcionesRecientes(local) {
 function renderRecepcionesRecientes() {
   const cont = document.getElementById('recepciones-recientes-lista');
   if (!cont) return;
-  if (!DB.recepcionesRecientes || DB.recepcionesRecientes.length === 0) {
+  const facturas = DB.recepcionesRecientes || [];
+  const rendiciones = DB.rendicionesRecientes || [];
+  if (facturas.length === 0 && rendiciones.length === 0) {
     cont.innerHTML = '<div class="no-data">Sin recepciones registradas en los últimos 30 días.</div>';
     return;
   }
-  cont.innerHTML = DB.recepcionesRecientes.map((r, idx) => {
+  const htmlFacturas = facturas.map((r, idx) => {
     const estadoTexto = r.estado_documental === 'VINCULADO' ? '✓ En RCV' : '○ Pendiente RCV';
     // Sprint 117: responsable REAL del primer evento (nunca el último,
     // nunca auth.uid(), nunca la cuenta técnica de sincronización) --
@@ -2127,11 +2249,49 @@ function renderRecepcionesRecientes() {
         </div>
       </div>`;
   }).join('');
+
+  // Compras Rendidas -- visualmente SIEMPRE distintas de una factura:
+  // nunca "Factura N° / Pendiente RCV", siempre "COMPRA RENDIDA" +
+  // "SIN DTE / RENDICIÓN". Fuente propia (listar_rendiciones_bodega,
+  // 169), combinada aquí solo para presentación.
+  const htmlRendiciones = rendiciones.map((r, idx) => {
+    const lineasHtml = (r.lineas || []).map(l =>
+      l.tipo_linea === 'ARTICULO'
+        ? `<li>${l.articulo_nombre} · ${l.cantidad} ${l.unidad_codigo}</li>`
+        : `<li>${l.descripcion_libre}</li>`
+    ).join('');
+    const estadoTexto = r.estado === 'REEMBOLSADA' ? '✓ Reembolsada' : '○ Pendiente de reembolso';
+    return `
+      <div class="recepcion-reciente-item" style="border:1px solid var(--border,#333);border-radius:8px;margin-bottom:8px;overflow:hidden;">
+        <div class="recepcion-reciente-head" style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRendicionReciente(${idx})">
+          <div>
+            <strong>COMPRA RENDIDA · ${r.comercio_informado || 'Comercio no informado'}</strong>
+            <div class="hint">${r.fecha} · Comprador: ${r.comprador_informado || '—'} · Responsable: ${r.responsable_informado || '—'}</div>
+            <div class="hint">SIN DTE / RENDICIÓN · $${r.monto_total} · ${estadoTexto}</div>
+          </div>
+          <span id="rendicion-chevron-${idx}">▼</span>
+        </div>
+        <div class="recepcion-reciente-body" id="rendicion-body-${idx}" style="display:none;padding:0 12px 12px;">
+          <ul style="margin:6px 0 0;padding-left:18px;">${lineasHtml}</ul>
+        </div>
+      </div>`;
+  }).join('');
+
+  cont.innerHTML = htmlFacturas + htmlRendiciones;
 }
 
 function toggleRecepcionReciente(idx) {
   const body = document.getElementById('recepcion-body-' + idx);
   const chevron = document.getElementById('recepcion-chevron-' + idx);
+  if (!body) return;
+  const abierto = body.style.display === 'block';
+  body.style.display = abierto ? 'none' : 'block';
+  if (chevron) chevron.textContent = abierto ? '▼' : '▲';
+}
+
+function toggleRendicionReciente(idx) {
+  const body = document.getElementById('rendicion-body-' + idx);
+  const chevron = document.getElementById('rendicion-chevron-' + idx);
   if (!body) return;
   const abierto = body.style.display === 'block';
   body.style.display = abierto ? 'none' : 'block';
@@ -2988,6 +3148,272 @@ async function guardarRecepcion() {
   } catch (e) {
     resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);padding:14px;border-radius:8px;font-size:14px;';
     resultado.innerHTML = '❌ No se pudo guardar (' + e.message + '). Vuelve a intentar.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
+}
+
+// ══════════════════════════════════════════════════
+// TIPO DE RECEPCIÓN -- selector aditivo (sprint "Compra Rendida por
+// Trabajador"). Los dos flujos existentes (factura/documento
+// pendiente) NUNCA cambian payload/RPC/validaciones -- este selector
+// solo muestra/oculta tarjetas; rec-card sigue siendo exactamente el
+// mismo formulario de siempre, con el mismo comportamiento.
+// ══════════════════════════════════════════════════
+function cambiarTipoRecepcion(valor) {
+  const recCard = document.getElementById('rec-card');
+  const rndCard = document.getElementById('rendicion-card');
+  if (!recCard || !rndCard) return;
+  const esRendicion = (valor === 'rendicion');
+  recCard.style.display = esRendicion ? 'none' : '';
+  rndCard.style.display = esRendicion ? '' : 'none';
+}
+
+// ══════════════════════════════════════════════════
+// COMPRA RENDIDA POR TRABAJADOR -- flujo AISLADO (168/169). NUNCA usa
+// registrar_recepcion_compra ni recepciones_compra_legado -- Storage
+// (168) + registro (169), ambos con idempotencia real por
+// rendicionClientId (generado UNA vez por formulario -- un reintento
+// reutiliza el mismo comprobante ya subido, nunca duplica ni pide
+// subirlo de nuevo).
+// ══════════════════════════════════════════════════
+let rendicionClientId = null;
+let rendicionComprobantePath = null;
+let rendicionComprobanteListo = false;
+let rendicionLineasActuales = [];
+
+function nuevoRendicionClientId() {
+  return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : uid();
+}
+
+// Mismo criterio que poblarInsumosTraspaso -- sin articulo_maestro_id
+// y unidad_captura_id resueltos (091-096) no se puede registrar contra
+// Core de forma segura, nunca se inventa una conversion. Reutiliza la
+// presentacion/unidad operativa ya resuelta para cada insumo (nunca
+// una nueva).
+function poblarInsumosRendicion() {
+  const sel = document.getElementById('rnd-insumo');
+  if (!sel) return;
+  const local = document.getElementById('rnd-local')?.value || '';
+  sel.innerHTML = '<option value="">Seleccionar producto</option>';
+  DB.insumos.forEach(ins => {
+    if (ins.activo === false) return;
+    if (!local || ins.local !== local) return;
+    if (!ins.articulo_maestro_id || !ins.unidad_captura_id) return;
+    sel.innerHTML += `<option value="${ins.id}">${ins.nombre} (${ins.unidad})</option>`;
+  });
+}
+
+function agregarLineaRendicionArticulo() {
+  const insumoId = document.getElementById('rnd-insumo').value;
+  const cantidad = parseFloat(document.getElementById('rnd-cantidad').value);
+  const ins = getInsumo(insumoId);
+  if (!ins || !ins.articulo_maestro_id || !ins.unidad_captura_id) {
+    toast('⚠️ Selecciona un producto válido', true); return;
+  }
+  if (!cantidad || cantidad <= 0) {
+    toast('⚠️ Ingresa una cantidad mayor a cero', true); return;
+  }
+  rendicionLineasActuales.push({
+    tipo_linea: 'ARTICULO',
+    articulo_maestro_id: ins.articulo_maestro_id,
+    unidad_id: ins.unidad_captura_id,
+    cantidad,
+    nombreDisplay: `${ins.nombre} · ${cantidad} ${ins.unidad}`,
+  });
+  renderLineasRendicion();
+  document.getElementById('rnd-insumo').value = '';
+  document.getElementById('rnd-cantidad').value = '';
+}
+
+function agregarLineaRendicionConcepto() {
+  const desc = document.getElementById('rnd-concepto-desc').value.trim();
+  const montoRaw = document.getElementById('rnd-concepto-monto').value;
+  const monto = montoRaw ? parseFloat(montoRaw) : null;
+  if (!desc) {
+    toast('⚠️ Describe qué se compró', true); return;
+  }
+  rendicionLineasActuales.push({
+    tipo_linea: 'CONCEPTO',
+    descripcion_libre: desc,
+    monto_linea: (monto && monto > 0) ? monto : null,
+    nombreDisplay: desc + (monto ? ` · $${monto}` : ''),
+  });
+  renderLineasRendicion();
+  document.getElementById('rnd-concepto-desc').value = '';
+  document.getElementById('rnd-concepto-monto').value = '';
+}
+
+function quitarLineaRendicion(i) {
+  rendicionLineasActuales.splice(i, 1);
+  renderLineasRendicion();
+}
+
+function renderLineasRendicion() {
+  const tbody = document.getElementById('rnd-lineas-tbody');
+  if (!tbody) return;
+  if (rendicionLineasActuales.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="no-data">Aún no agregas nada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rendicionLineasActuales.map((l, i) => `
+    <tr>
+      <td>${l.nombreDisplay}</td>
+      <td>${l.tipo_linea === 'ARTICULO' ? l.cantidad : '—'}</td>
+      <td><button class="btn-icon" onclick="quitarLineaRendicion(${i})">🗑</button></td>
+    </tr>
+  `).join('');
+}
+
+// Subida directa a Storage (168) -- distinta de sbFetch (esa es solo
+// para PostgREST/RPC, exige Content-Profile y solo maneja JSON). x-upsert
+// permite reintentar sin duplicar el archivo (RLS de 168 ya restringe
+// ese upsert a "todavia no registrado").
+async function sbStorageUpload(path, file) {
+  const resp = await fetch(`${SB_URL}/storage/v1/object/comprobantes-rendicion/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': 'Bearer ' + SB_KEY,
+      'Content-Type': file.type,
+      'x-upsert': 'true',
+    },
+    body: file,
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(err.slice(0, 200));
+  }
+}
+
+async function subirComprobanteRendicion(inputEl) {
+  const file = inputEl.files && inputEl.files[0];
+  const estadoEl = document.getElementById('rnd-comprobante-estado');
+  if (!file) return;
+
+  const formatosValidos = ['image/jpeg', 'image/png', 'application/pdf'];
+  if (!formatosValidos.includes(file.type)) {
+    toast('⚠️ Solo se aceptan JPG, PNG o PDF', true);
+    inputEl.value = '';
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    toast('⚠️ El archivo supera 8 MB', true);
+    inputEl.value = '';
+    return;
+  }
+
+  const local = document.getElementById('rnd-local')?.value || '';
+  const responsable = document.getElementById('rnd-responsable')?.value || '';
+  if (!local || !responsable) {
+    toast('⚠️ Selecciona local y responsable antes de subir el comprobante', true);
+    inputEl.value = '';
+    return;
+  }
+
+  if (!rendicionClientId) rendicionClientId = nuevoRendicionClientId();
+  const localCodigo = local === 'Plaza Oeste' ? 'MPO' : 'PAJ';
+  const ext = file.type === 'application/pdf' ? 'pdf' : (file.type === 'image/png' ? 'png' : 'jpg');
+  const path = `${localCodigo}/${rendicionClientId}.${ext}`;
+
+  if (estadoEl) { estadoEl.textContent = 'Subiendo comprobante...'; estadoEl.style.color = ''; }
+  rendicionComprobanteListo = false;
+  try {
+    await sbStorageUpload(path, file);
+    await sbRpc('registrar_comprobante_rendicion', {
+      p_local_codigo: local,
+      p_rendicion_client_id: rendicionClientId,
+      p_comprobante_path: path,
+      p_responsable_informado: responsable,
+    });
+    rendicionComprobantePath = path;
+    rendicionComprobanteListo = true;
+    if (estadoEl) { estadoEl.textContent = '✓ Comprobante listo'; estadoEl.style.color = 'var(--ok, #1a9e6a)'; }
+  } catch (e) {
+    // NUNCA mostrar SQL/Postgres al trabajador -- el archivo elegido
+    // sigue disponible para reintentar (mismo rendicionClientId/ruta,
+    // upsert-seguro por diseño de 168).
+    rendicionComprobanteListo = false;
+    if (estadoEl) { estadoEl.textContent = '❌ No se pudo subir. Vuelve a intentar.'; estadoEl.style.color = 'var(--danger, #c0392b)'; }
+  }
+}
+
+function limpiarFormRendicion() {
+  rendicionClientId = null;
+  rendicionComprobantePath = null;
+  rendicionComprobanteListo = false;
+  rendicionLineasActuales = [];
+  renderLineasRendicion();
+  ['rnd-fecha', 'rnd-comprador', 'rnd-comercio', 'rnd-monto', 'rnd-obs', 'rnd-cantidad', 'rnd-concepto-desc', 'rnd-concepto-monto'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const local = document.getElementById('rnd-local'); if (local) local.value = '';
+  const insumo = document.getElementById('rnd-insumo'); if (insumo) insumo.value = '';
+  const input = document.getElementById('rnd-comprobante-input'); if (input) input.value = '';
+  const estado = document.getElementById('rnd-comprobante-estado'); if (estado) estado.textContent = '';
+  const resultado = document.getElementById('rnd-resultado'); if (resultado) resultado.style.display = 'none';
+}
+
+async function guardarCompraRendida() {
+  const fecha = document.getElementById('rnd-fecha').value;
+  const local = document.getElementById('rnd-local').value;
+  const comprador = document.getElementById('rnd-comprador').value.trim();
+  const comercio = document.getElementById('rnd-comercio').value.trim();
+  const montoRaw = document.getElementById('rnd-monto').value;
+  const monto = montoRaw ? parseFloat(montoRaw) : null;
+  const obs = document.getElementById('rnd-obs').value.trim();
+
+  if (!fecha || !local || !comprador || !comercio || !monto || monto <= 0) {
+    toast('⚠️ Completa fecha, local, comprador, comercio y monto total', true); return;
+  }
+  if (rendicionLineasActuales.length === 0) {
+    toast('⚠️ Agrega al menos un artículo o un gasto', true); return;
+  }
+  if (!rendicionComprobanteListo || !rendicionComprobantePath) {
+    toast('⚠️ Sube el comprobante antes de registrar', true); return;
+  }
+
+  const lineas = rendicionLineasActuales.map(l => {
+    if (l.tipo_linea === 'ARTICULO') {
+      return { tipo_linea: 'ARTICULO', articulo_maestro_id: l.articulo_maestro_id, cantidad: l.cantidad, unidad_id: l.unidad_id };
+    }
+    return { tipo_linea: 'CONCEPTO', descripcion_libre: l.descripcion_libre, monto_linea: l.monto_linea };
+  });
+
+  const btn = document.getElementById('rnd-registrar-btn');
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Registrando...'; }
+  const resultado = document.getElementById('rnd-resultado');
+
+  try {
+    const r = await sbRpc('registrar_compra_rendida', {
+      p_local_codigo: local,
+      p_rendicion_client_id: rendicionClientId,
+      p_fecha_compra: fecha,
+      p_comprador_informado: comprador,
+      p_comercio_informado: comercio,
+      p_monto_total: monto,
+      p_lineas: lineas,
+      p_observacion: obs || null,
+    });
+    const fila = Array.isArray(r) ? r[0] : r;
+    if (!fila || !fila.rendicion_id) {
+      throw new Error('respuesta inesperada');
+    }
+    resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(26,158,106,.08);border:1px solid rgba(26,158,106,.3);padding:14px;border-radius:8px;font-size:14px;';
+    resultado.innerHTML = `✓ Compra rendida registrada<br>${comercio} · $${monto}<br><span style="font-size:12px;color:var(--text-muted);">Queda pendiente de reembolso a ${comprador}.</span>`;
+    resultado.style.display = 'block';
+    renderDashboard();
+    renderStock();
+    if (typeof cargarRecepcionesRecientes === 'function' && local) cargarRecepcionesRecientes(local);
+    limpiarFormRendicion();
+  } catch (e) {
+    // NUNCA mostrar SQL/Postgres/stack trace/RLS interno al trabajador
+    // -- los datos del formulario siguen en pantalla para reintentar
+    // (el comprobante ya subido se reutiliza, nunca se vuelve a pedir).
+    resultado.style.cssText = 'display:block;margin-top:14px;background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.3);padding:14px;border-radius:8px;font-size:14px;';
+    resultado.innerHTML = 'No se pudo registrar. Tus datos siguen en pantalla. Vuelve a intentar.';
+    resultado.style.display = 'block';
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
   }
