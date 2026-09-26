@@ -1950,10 +1950,36 @@ function autoFillUnidad(selectId, unidadId) {
   const sel = document.getElementById(selectId);
   const uid = document.getElementById(unidadId);
   if (!sel || !uid) return;
-  sel.addEventListener('change', () => {
+  sel.addEventListener('change', async () => {
     const ins = getInsumo(sel.value);
-    uid.value = ins ? ins.unidad : '';
+    uid.value = await resolverUnidadOperacionalBodega(ins);
   });
+}
+
+// Unidad operacional VIGENTE (Core) para un insumo con articulo_maestro_id
+// resuelto -- NUNCA la unidad legada estatica de public.insumos, que
+// puede quedar desincronizada cuando alguien corrige la conversion
+// canonica en conversiones_articulos (causa raiz real, incidencia
+// Mantequilla Calo PAJ 2026-09-25: insumos.unidad seguia diciendo
+// "Unidades" dias despues de que la conversion vigente pasara a PAN,
+// y registrar_recepcion_compra rechazo correctamente esa unidad ya sin
+// conversion vigente). Reutiliza resolver_unidad_operacional_bodega
+// (migracion 176, wrapper publico de resolver_unidad_operacional,
+// 091/093/096) -- nunca hardcodea un articulo ni una unidad especifica,
+// funciona igual para cualquiera. Best-effort: si el insumo no tiene
+// articulo_maestro_id, si la RPC falla, o si el Core reporta ambiguedad/
+// sin_conversion, cae al texto legado de siempre -- nunca bloquea al
+// trabajador ni inventa una unidad.
+async function resolverUnidadOperacionalBodega(ins) {
+  if (!ins || !ins.articulo_maestro_id) return ins ? ins.unidad : '';
+  try {
+    const r = await sbRpc('resolver_unidad_operacional_bodega', { p_articulo_maestro_id: ins.articulo_maestro_id });
+    const fila = Array.isArray(r) ? r[0] : r;
+    if (fila && fila.unidad_codigo && !fila.ambigua && !fila.sin_conversion) {
+      return fila.unidad_nombre || fila.unidad_codigo;
+    }
+  } catch (e) { /* best-effort: ante cualquier falla, cae al texto legado abajo */ }
+  return ins.unidad;
 }
 
 function noData(cols) {
@@ -3012,7 +3038,7 @@ async function verificarMatchRCV() {
   }
 }
 
-function agregarLineaRecepcion() {
+async function agregarLineaRecepcion() {
   const insumoId = document.getElementById('rec-insumo').value;
   const cantidad = parseFloat(document.getElementById('rec-cantidad').value);
   const lote = document.getElementById('rec-lote')?.value.trim() || '';
@@ -3021,7 +3047,8 @@ function agregarLineaRecepcion() {
   if (!insumoId || !cantidad || cantidad <= 0) {
     toast('⚠️ Selecciona un producto y una cantidad mayor a cero', true); return;
   }
-  recepcionLineasActuales.push({ insumoId, nombre: ins ? ins.nombre : insumoId, cantidad, unidad: ins ? ins.unidad : '', lote, vencimiento });
+  const unidad = await resolverUnidadOperacionalBodega(ins);
+  recepcionLineasActuales.push({ insumoId, nombre: ins ? ins.nombre : insumoId, cantidad, unidad, lote, vencimiento });
   renderLineasRecepcion();
   document.getElementById('rec-insumo').value = '';
   document.getElementById('rec-unidad').value = '';
