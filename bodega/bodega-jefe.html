@@ -1777,7 +1777,7 @@ function autoFillUnidad(selectId, unidadId) {
   if (!sel || !uid) return;
   sel.addEventListener('change', async () => {
     const ins = getInsumo(sel.value);
-    uid.value = await resolverUnidadOperacionalBodega(ins);
+    uid.value = (await resolverUnidadOperacionalBodega(ins)).unidad;
   });
 }
 
@@ -1795,16 +1795,29 @@ function autoFillUnidad(selectId, unidadId) {
 // articulo_maestro_id, si la RPC falla, o si el Core reporta ambiguedad/
 // sin_conversion, cae al texto legado de siempre -- nunca bloquea al
 // trabajador ni inventa una unidad.
+//
+// Devuelve SIEMPRE {unidad, unidad_codigo}: `unidad` es el nombre para
+// EXHIBIR (ej. "Pan") -- nunca viaja al backend. `unidad_codigo` es el
+// codigo canonico ESTABLE de public.unidades_medida (ej. "PAN") --
+// nunca un nombre humano -- y es null cuando no hay resolucion Core
+// (el backend cae entonces al texto legado de siempre, migracion 177,
+// exactamente igual que antes de este fix). Causa raiz del reintento
+// fallido real de hoy (2026-09-26, folio 5863473): esta funcion
+// devolvia el nombre humano como unico valor, y ese mismo string
+// viajaba tal cual hasta el backend, que lo reinterpretaba con un
+// diccionario legado cerrado (082) que nunca conocio "Pan" -- el
+// backend ahora (177) acepta unidad_codigo directo y nunca reinterpreta
+// un codigo canonico real.
 async function resolverUnidadOperacionalBodega(ins) {
-  if (!ins || !ins.articulo_maestro_id) return ins ? ins.unidad : '';
+  if (!ins || !ins.articulo_maestro_id) return { unidad: ins ? ins.unidad : '', unidad_codigo: null };
   try {
     const r = await sbRpc('resolver_unidad_operacional_bodega', { p_articulo_maestro_id: ins.articulo_maestro_id });
     const fila = Array.isArray(r) ? r[0] : r;
     if (fila && fila.unidad_codigo && !fila.ambigua && !fila.sin_conversion) {
-      return fila.unidad_nombre || fila.unidad_codigo;
+      return { unidad: fila.unidad_nombre || fila.unidad_codigo, unidad_codigo: fila.unidad_codigo };
     }
   } catch (e) { /* best-effort: ante cualquier falla, cae al texto legado abajo */ }
-  return ins.unidad;
+  return { unidad: ins.unidad, unidad_codigo: null };
 }
 
 function noData(cols) {
@@ -2950,8 +2963,8 @@ async function agregarLineaRecepcion() {
   if (!insumoId || !cantidad || cantidad <= 0) {
     toast('⚠️ Selecciona un producto y una cantidad mayor a cero', true); return;
   }
-  const unidad = await resolverUnidadOperacionalBodega(ins);
-  recepcionLineasActuales.push({ insumoId, nombre: ins ? ins.nombre : insumoId, cantidad, unidad, lote, vencimiento });
+  const { unidad, unidad_codigo } = await resolverUnidadOperacionalBodega(ins);
+  recepcionLineasActuales.push({ insumoId, nombre: ins ? ins.nombre : insumoId, cantidad, unidad, unidad_codigo, lote, vencimiento });
   renderLineasRecepcion();
   document.getElementById('rec-insumo').value = '';
   document.getElementById('rec-unidad').value = '';
@@ -3021,7 +3034,7 @@ async function guardarRecepcion() {
     tipo_documento: tipoDocumento, folio,
     fecha_documento: fechaDocumento,
     responsable, obs: obs || null,
-    lineas: recepcionLineasActuales.map(l => ({ insumoId: l.insumoId, cantidad: l.cantidad, unidad: l.unidad }))
+    lineas: recepcionLineasActuales.map(l => ({ insumoId: l.insumoId, cantidad: l.cantidad, unidad: l.unidad, unidad_codigo: l.unidad_codigo || null }))
   };
 
   const btn = document.getElementById('rec-registrar-btn');
