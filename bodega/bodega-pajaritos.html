@@ -1146,6 +1146,7 @@
         </div>
         <div class="form-actions" style="margin-top:14px;">
           <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('inv','inventario')">✅ Guardar inventario</button>
+          <button class="btn btn-ghost" onclick="corregirConteoGuardado('inv','inventario')">✏️ Corregir conteo guardado</button>
           <button class="btn btn-ghost" onclick="document.getElementById('inv-conteo-wrap').style.display='none'">Cancelar</button>
         </div>
       </div>
@@ -1210,6 +1211,7 @@
         </div>
         <div class="form-actions" style="margin-top:14px;">
           <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('invl','inventario_local')">✅ Guardar inventario local</button>
+          <button class="btn btn-ghost" onclick="corregirConteoGuardado('invl','inventario_local')">✏️ Corregir conteo guardado</button>
           <button class="btn btn-ghost" onclick="document.getElementById('invl-conteo-wrap').style.display='none'">Cancelar</button>
         </div>
       </div>
@@ -3705,6 +3707,7 @@ function ordenarConGruposVisuales(insumosOrdenados) {
 }
 
 function generarConteoInventario(prefix) {
+  salirModoCorreccion(prefix);
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
   const responsable = document.getElementById(`${prefix}-responsable`).value;
@@ -3796,6 +3799,111 @@ async function registrarIntentoConteo(ubicacion, fecha, responsable, resultado, 
 // huérfano -- si la copia legado falla, la RPC entera falla (nunca un
 // "éxito falso"). El trabajador solo ve "guardado" cuando el conteo
 // quedó realmente completo en el estado final esperado.
+// 202: CORRECCIÓN de un conteo ya guardado (Bodega 'inv' / Local 'invl').
+// Se precargan EXACTAMENTE las capturas del conteo aprobado vigente (por
+// insumo, en su unidad de captura; el backend verifica que reproducen el
+// conteo) y se reenvía el conjunto completo a corregir_conteo_operativo_local
+// (versión nueva; la anterior queda anulada). Solo el conteo de HOY: otras
+// fechas las corrige un administrador (el backend lo exige). Un conteo nuevo
+// (Generar conteo) nunca entra en este modo.
+const CORRECCION_CONTEO = {};
+
+function mensajeErrorRpc(e) {
+  try { return JSON.parse(e.message).message || e.message; } catch (_) { return e.message; }
+}
+
+function salirModoCorreccion(prefix) {
+  delete CORRECCION_CONTEO[prefix];
+  document.getElementById(`${prefix}-aviso-correccion`)?.remove();
+}
+
+async function corregirConteoGuardado(prefix, tabla) {
+  const fecha = document.getElementById(`${prefix}-fecha`).value;
+  const local = document.getElementById(`${prefix}-local`).value;
+  if (!fecha || !local) { toast('⚠️ Selecciona la fecha y el local del conteo a corregir', true); return; }
+  await iniciarCorreccionConteo(prefix, tabla === 'inventario' ? 'BODEGA' : 'LOCAL', fecha, local);
+}
+
+async function iniciarCorreccionConteo(prefix, ubicacion, fecha, local) {
+  const etiqueta = ubicacion === 'BODEGA' ? 'Bodega' : 'Local';
+  let capturas;
+  try {
+    capturas = await sbRpc('capturas_conteo_operativo_vigente', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha
+    });
+  } catch (e) {
+    toast(`❌ No se pudieron cargar las cantidades guardadas: ${mensajeErrorRpc(e)}`, true);
+    return false;
+  }
+  if (!Array.isArray(capturas) || capturas.length === 0) {
+    toast(`❌ No hay cantidades guardadas del conteo de ${local} (${etiqueta}) del ${fecha}.`, true);
+    return false;
+  }
+  generarConteoInventario(prefix); // formulario limpio, mismo orden y mismos insumos que un conteo normal
+  const inputs = new Map([...document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`)].map(inp => [inp.dataset.id, inp]));
+  const fuera = capturas.filter(c => !inputs.has(c.insumo_id));
+  if (fuera.length > 0) {
+    document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
+    toast(`❌ El conteo guardado tiene ${fuera.length} artículo(s) que ya no aparecen en esta pantalla -- la corrección la hace un administrador.`, true);
+    return false;
+  }
+  capturas.forEach(c => { inputs.get(c.insumo_id).value = String(c.cantidad); });
+  CORRECCION_CONTEO[prefix] = { ubicacion, fecha, local, conteoId: capturas[0].conteo_id, version: capturas[0].version };
+  const aviso = document.createElement('div');
+  aviso.id = `${prefix}-aviso-correccion`;
+  aviso.style.cssText = 'margin-bottom:10px;padding:10px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);font-weight:600;';
+  aviso.textContent = `✏️ Corrigiendo el conteo guardado de ${local} (${etiqueta}) del ${fecha} -- versión ${capturas[0].version}. Edita solo lo necesario y presiona Guardar; no borres cantidades.`;
+  const wrap = document.getElementById(`${prefix}-conteo-wrap`);
+  wrap.insertBefore(aviso, wrap.firstChild);
+  toast(`✏️ Se cargaron las ${capturas.length} cantidades guardadas. Edita y presiona Guardar.`);
+  return true;
+}
+
+async function guardarCorreccionConteo(prefix, tabla, correccion, responsable, lineasCore, records) {
+  const etiqueta = correccion.ubicacion === 'BODEGA' ? 'Bodega' : 'Local';
+  const motivo = window.prompt(
+    `Vas a CORREGIR el conteo de ${correccion.local} (${etiqueta}) del ${correccion.fecha}.\n\n` +
+    `Escribe el motivo (por ejemplo: "ingresé las cantidades del Local en Bodega") y presiona Aceptar.`
+  );
+  if (!motivo || !motivo.trim()) { toast('⚠️ Sin motivo no se corrige. Tus cantidades siguen en pantalla.', true); return; }
+  const btn = document.querySelector(`#${prefix}-conteo-wrap .btn-primary`);
+  const btnTextoOriginal = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Corrigiendo...'; }
+  try {
+    const resultado = await sbRpc('corregir_conteo_operativo_local', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: correccion.ubicacion,
+      p_fecha_operacional: correccion.fecha,
+      p_responsable_informado: responsable,
+      p_lineas: lineasCore,
+      p_motivo: motivo.trim()
+    });
+    const fila = Array.isArray(resultado) ? resultado[0] : resultado;
+    if (!fila || !fila.conteo_id) throw new Error('Respuesta inesperada de Core -- no se pudo confirmar la corrección.');
+    toast(`✅ Conteo de ${etiqueta} corregido (versión ${fila.version}).`);
+    registrarIntentoConteo(correccion.ubicacion, correccion.fecha, responsable, 'CORREGIDO', true, fila.conteo_id, motivo.trim());
+    // Vista local: las filas de este local+fecha+insumos se reemplazan (no se suman).
+    const ids = new Set(records.map(r => r.insumoId));
+    DB[tabla] = (DB[tabla] || []).filter(r => !(r.fecha === correccion.fecha && r.local === correccion.local && ids.has(r.insumoId)));
+    DB[tabla].push(...records);
+    guardarDB(tabla);
+    salirModoCorreccion(prefix);
+    renderDashboard();
+    renderStock();
+    document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
+    if (tabla === 'inventario') filtrarInventario();
+    else filtrarInventarioLocal();
+  } catch (e) {
+    const detalle = mensajeErrorRpc(e);
+    toast(`❌ No se corrigió el conteo: ${detalle}. Tus cantidades siguen en pantalla.`, true);
+    registrarIntentoConteo(correccion.ubicacion, correccion.fecha, responsable, 'ERROR_CORRECCION', false, correccion.conteoId, detalle);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+  }
+}
+
 async function guardarConteoMasivo(prefix, tabla) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
@@ -3827,6 +3935,13 @@ async function guardarConteoMasivo(prefix, tabla) {
 
   if (lineasCore.length === 0) { toast('⚠️ Ingresa al menos una cantidad', true); return; }
 
+  const correccion = CORRECCION_CONTEO[prefix];
+  if (correccion && correccion.fecha === fecha && correccion.local === local) {
+    await guardarCorreccionConteo(prefix, tabla, correccion, responsable, lineasCore, records);
+    return;
+  }
+  salirModoCorreccion(prefix);
+
   const btn = document.querySelector(`#${prefix}-conteo-wrap .btn-primary`);
   const btnTextoOriginal = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; } // evita doble click mientras se guarda.
@@ -3852,8 +3967,16 @@ async function guardarConteoMasivo(prefix, tabla) {
     }
 
     if (fila.estado_resultado === 'YA_APROBADO') {
-      toast(`⚠️ El conteo de ${local} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'}) del ${fecha} ya estaba guardado y aprobado -- no se modifica. Avisa a un administrador si hay que corregirlo.`, true);
       registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
+      const etiqueta = ubicacion === 'BODEGA' ? 'Bodega' : 'Local';
+      if (window.confirm(
+        `El conteo de ${local} (${etiqueta}) del ${fecha} ya estaba guardado.\n\n` +
+        `¿Quieres CORREGIRLO? Se cargarán en pantalla las cantidades guardadas para que edites solo lo necesario.`
+      )) {
+        await iniciarCorreccionConteo(prefix, ubicacion, fecha, local);
+      } else {
+        toast(`⚠️ El conteo de ${local} (${etiqueta}) del ${fecha} no se modificó.`, true);
+      }
       return;
     }
 
