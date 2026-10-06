@@ -1136,6 +1136,11 @@
           <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('inv')" id="inv-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
+      <div id="inv-estado-conteo" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);">
+        <span id="inv-estado-conteo-texto" style="font-weight:600;"></span>
+        <button class="btn btn-primary" style="margin-left:10px;" id="inv-btn-editar" onclick="corregirConteoGuardado('inv','inventario')">✏️ Editar conteo</button>
+        <div class="hint" id="inv-estado-conteo-nota" style="margin-top:6px;"></div>
+      </div>
 
       <div id="inv-conteo-wrap" style="display:none;">
         <div class="table-wrap">
@@ -1146,7 +1151,6 @@
         </div>
         <div class="form-actions" style="margin-top:14px;">
           <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('inv','inventario')">✅ Guardar inventario</button>
-          <button class="btn btn-ghost" onclick="corregirConteoGuardado('inv','inventario')">✏️ Corregir conteo guardado</button>
           <button class="btn btn-ghost" onclick="document.getElementById('inv-conteo-wrap').style.display='none'">Cancelar</button>
         </div>
       </div>
@@ -1201,6 +1205,11 @@
           <button class="btn btn-primary" style="width:100%;" onclick="generarConteoInventario('invl')" id="invl-btn-generar">📋 Generar conteo</button>
         </div>
       </div>
+      <div id="invl-estado-conteo" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);">
+        <span id="invl-estado-conteo-texto" style="font-weight:600;"></span>
+        <button class="btn btn-primary" style="margin-left:10px;" id="invl-btn-editar" onclick="corregirConteoGuardado('invl','inventario_local')">✏️ Editar conteo</button>
+        <div class="hint" id="invl-estado-conteo-nota" style="margin-top:6px;"></div>
+      </div>
 
       <div id="invl-conteo-wrap" style="display:none;">
         <div class="table-wrap">
@@ -1211,7 +1220,6 @@
         </div>
         <div class="form-actions" style="margin-top:14px;">
           <button class="btn btn-primary btn-lg" onclick="guardarConteoMasivo('invl','inventario_local')">✅ Guardar inventario local</button>
-          <button class="btn btn-ghost" onclick="corregirConteoGuardado('invl','inventario_local')">✏️ Corregir conteo guardado</button>
           <button class="btn btn-ghost" onclick="document.getElementById('invl-conteo-wrap').style.display='none'">Cancelar</button>
         </div>
       </div>
@@ -1799,7 +1807,7 @@ function seleccionarPerfil(id) {
   }
 
   // Pre-llenar fecha de hoy en todos los formularios de conteo
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = fechaHoyChile();
   ['ing-fecha','sal-fecha','inv-fecha','invl-fecha'].forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.value) el.value = hoy;
@@ -1885,6 +1893,8 @@ function switchTab(id) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
+  if (id === 'inventario') actualizarEstadoConteo('inv');
+  if (id === 'inventario-local') actualizarEstadoConteo('invl');
   event.currentTarget.classList.add('active');
   if (id === 'dashboard') renderDashboard();
   if (id === 'ingresos') { poblarSelectInsumos('ing-insumo'); poblarSelectInsumos('rec-insumo'); cargarYPoblarProveedores(); filtrarIngresos(); }
@@ -1892,11 +1902,9 @@ function switchTab(id) {
   if (id === 'inventario') { poblarSelectInsumos('inv-insumo'); filtrarInventario(); }
   if (id === 'stock') renderStock();
   if (id === 'cuadre') {
-    const mes = new Date().toISOString().slice(0,7);
     if (!document.getElementById('filt-cuadre-mes').value) {
-      // Default to previous month
-      const d = new Date(); d.setMonth(d.getMonth()-1);
-      document.getElementById('filt-cuadre-mes').value = d.toISOString().slice(0,7);
+      // Default to previous month (calendario de Chile)
+      document.getElementById('filt-cuadre-mes').value = mesAnteriorChile();
     }
   }
   if (id === 'config') renderConfigInsumos();
@@ -2956,14 +2964,37 @@ function getProveedorValue() {
 // ══════════════════════════════════════════════════
 // INGRESOS
 // ══════════════════════════════════════════════════
+// Fecha y hora OPERACIONAL en Chile (America/Santiago). Antes se usaba
+// toISOString() (UTC): desde las 21:00 (20:00 en invierno) proponía la fecha
+// de MAÑANA. Misma regla que el backend 202 para "el conteo de hoy".
+function partesFechaChile(instante) {
+  const partes = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(instante || new Date());
+  return Object.fromEntries(partes.map(p => [p.type, p.value]));
+}
+function fechaHoyChile(instante) {
+  const p = partesFechaChile(instante);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function fechaHoraChile(instante) {
+  const p = partesFechaChile(instante);
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+function mesActualChile() {
+  return fechaHoyChile().slice(0, 7);
+}
+function mesAnteriorChile() {
+  const [y, m] = mesActualChile().split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
 function setFechaHoy(id) {
   const el = document.getElementById(id);
   if (!el || el.value) return;
-  if (el.type === 'date') el.value = new Date().toISOString().split('T')[0];
-  if (el.type === 'datetime-local') {
-    const now = new Date();
-    el.value = now.toISOString().slice(0,16);
-  }
+  if (el.type === 'date') el.value = fechaHoyChile();
+  if (el.type === 'datetime-local') el.value = fechaHoraChile();
 }
 
 // ══════════════════════════════════════════════════
@@ -3812,10 +3843,78 @@ function salirModoCorreccion(prefix) {
   document.getElementById(`${prefix}-aviso-correccion`)?.remove();
 }
 
+function localLegadoApp() {
+  return LOCAL_CODIGO_CONTEO === 'MPO' ? 'Plaza Oeste' : 'Pajaritos';
+}
+
+function codigoErrorRpc(e) {
+  try { return JSON.parse(e.message).code || null; } catch (_) { return null; }
+}
+
+// Estado del conteo guardado de ESTA pestaña (local + ubicación + fecha).
+// Existe -> "✓ Conteo guardado" y "✏️ Editar conteo" (solo el conteo de hoy;
+// fechas anteriores: administrador); no existe -> flujo normal "Generar conteo".
+// Se consulta con la misma RPC de precarga (capturas_conteo_operativo_vigente).
+const ESTADO_CONTEO_SECUENCIA = {};
+
+async function actualizarEstadoConteo(prefix) {
+  const panel = document.getElementById(`${prefix}-estado-conteo`);
+  const btnGenerar = document.getElementById(`${prefix}-btn-generar`);
+  if (!panel || !btnGenerar) return;
+  const ubicacion = prefix === 'inv' ? 'BODEGA' : 'LOCAL';
+  const fecha = document.getElementById(`${prefix}-fecha`).value;
+  const local = document.getElementById(`${prefix}-local`).value;
+  const secuencia = (ESTADO_CONTEO_SECUENCIA[prefix] || 0) + 1;
+  ESTADO_CONTEO_SECUENCIA[prefix] = secuencia;
+  const mostrarGenerar = () => { panel.style.display = 'none'; btnGenerar.style.display = ''; };
+  if (!fecha || local !== localLegadoApp()) { mostrarGenerar(); return; }
+
+  let existe = false;
+  let precargable = false;
+  try {
+    const capturas = await sbRpc('capturas_conteo_operativo_vigente', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha
+    });
+    existe = Array.isArray(capturas) && capturas.length > 0;
+    precargable = existe;
+  } catch (e) {
+    const codigo = codigoErrorRpc(e);
+    if (codigo === '55000') existe = true; // guardado, pero sus capturas no se pueden precargar con exactitud
+    else if (codigo !== '23503') console.warn('[estado conteo] no se pudo consultar:', e.message);
+  }
+  if (ESTADO_CONTEO_SECUENCIA[prefix] !== secuencia) return; // llegó una consulta más nueva
+  if (!existe) { mostrarGenerar(); return; }
+
+  const [y, m, d] = fecha.split('-');
+  const editable = precargable && fecha === fechaHoyChile();
+  document.getElementById(`${prefix}-estado-conteo-texto`).textContent =
+    `✓ Conteo guardado — ${d}-${m}-${y} (${ubicacion === 'BODEGA' ? 'Bodega' : 'Local'})`;
+  document.getElementById(`${prefix}-btn-editar`).style.display = editable ? '' : 'none';
+  document.getElementById(`${prefix}-estado-conteo-nota`).textContent = editable
+    ? ''
+    : (precargable
+        ? 'Un conteo de una fecha anterior solo lo corrige un administrador.'
+        : 'Este conteo no se puede editar desde aquí -- su corrección la hace un administrador.');
+  panel.style.display = '';
+  btnGenerar.style.display = 'none';
+}
+
+['inv', 'invl'].forEach(prefix => {
+  ['fecha', 'local'].forEach(campo => {
+    document.getElementById(`${prefix}-${campo}`)?.addEventListener('change', () => actualizarEstadoConteo(prefix));
+  });
+});
+setTimeout(() => { actualizarEstadoConteo('inv'); actualizarEstadoConteo('invl'); }, 0);
+
 async function corregirConteoGuardado(prefix, tabla) {
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
+  const responsable = document.getElementById(`${prefix}-responsable`).value;
   if (!fecha || !local) { toast('⚠️ Selecciona la fecha y el local del conteo a corregir', true); return; }
+  if (!responsable) { toast('⚠️ Selecciona tu nombre (Responsable) antes de editar el conteo', true); return; }
+  if (fecha !== fechaHoyChile()) { toast('⚠️ Solo se puede editar el conteo de hoy -- para otra fecha, avisa a un administrador.', true); return; }
   await iniciarCorreccionConteo(prefix, tabla === 'inventario' ? 'BODEGA' : 'LOCAL', fecha, local);
 }
 
@@ -3885,6 +3984,7 @@ async function guardarCorreccionConteo(prefix, tabla, correccion, responsable, l
     DB[tabla].push(...records);
     guardarDB(tabla);
     salirModoCorreccion(prefix);
+    actualizarEstadoConteo(prefix);
     renderDashboard();
     renderStock();
     document.getElementById(`${prefix}-conteo-wrap`).style.display = 'none';
@@ -3964,7 +4064,10 @@ async function guardarConteoMasivo(prefix, tabla) {
     if (fila.estado_resultado === 'YA_APROBADO') {
       registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
       const etiqueta = ubicacion === 'BODEGA' ? 'Bodega' : 'Local';
-      if (window.confirm(
+      actualizarEstadoConteo(prefix);
+      if (fecha !== fechaHoyChile()) {
+        toast(`⚠️ El conteo de ${local} (${etiqueta}) del ${fecha} ya estaba guardado -- solo un administrador corrige fechas anteriores.`, true);
+      } else if (window.confirm(
         `El conteo de ${local} (${etiqueta}) del ${fecha} ya estaba guardado.\n\n` +
         `¿Quieres CORREGIRLO? Se cargarán en pantalla las cantidades guardadas para que edites solo lo necesario.`
       )) {
@@ -3984,6 +4087,7 @@ async function guardarConteoMasivo(prefix, tabla) {
       toast('✅ Inventario guardado correctamente');
     }
     registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
+    actualizarEstadoConteo(prefix);
 
     // Refresco de la vista local (pestaña "Inventario Bodega/Local" de
     // esta misma pantalla) -- ya NO es una escritura a Supabase, la RPC
@@ -4108,7 +4212,7 @@ function filtrarInventario() {
 function abrirModalBulk() {
   const modal = document.getElementById('modal-bulk');
   modal.classList.add('open');
-  document.getElementById('bulk-fecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('bulk-fecha').value = fechaHoyChile();
   // Fijar local del perfil si aplica
   const local = perfilActual?.local || 'Plaza Oeste';
   document.getElementById('bulk-local').value = local;
@@ -4892,7 +4996,7 @@ function exportarCSV(tabla) {
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `docpopcorn_${filename}_${new Date().toISOString().slice(0,10)}.csv`;
+  a.href = url; a.download = `docpopcorn_${filename}_${fechaHoyChile()}.csv`;
   a.click();
   URL.revokeObjectURL(url);
   toast('⬇ CSV exportado');
@@ -4955,7 +5059,7 @@ function exportarTodo() {
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `docpopcorn_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.href = url; a.download = `docpopcorn_backup_${fechaHoyChile()}.json`;
   a.click();
   URL.revokeObjectURL(url);
   toast('⬇ Backup exportado');
@@ -5319,7 +5423,7 @@ function init() {
   setFechaHoy('ce-fecha');
 
   // Mes actual en filtros
-  const mesActual = new Date().toISOString().slice(0,7);
+  const mesActual = mesActualChile();
   ['filt-ing-mes','filt-sal-mes','filt-inv-mes','filt-ce-mes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = mesActual;
