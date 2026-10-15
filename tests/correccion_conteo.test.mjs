@@ -82,6 +82,19 @@ async function abrir(pagina, backend, ahora = null) {
           if (!conteos.has(`${body.p_ubicacion}|${body.p_fecha_operacional}`)) return error("23503", "No hay un conteo guardado.");
           return ok(CAPTURAS.map((c) => ({ conteo_id: "conteo-v1", version: 1, ...c })));
         }
+        // 214
+        if (rpc === "iniciar_conteo_operativo_local") {
+          if (backend.sin214) return error("PGRST202", "Could not find the function");
+          return ok(backend.iniciar ? [backend.iniciar] : []);
+        }
+        if (rpc === "revisar_recepciones_conteo_operativo") {
+          if (backend.sin214 || backend.revisarFalla) return error("PGRST202", "Could not find the function");
+          return ok(backend.revisar ?? []);
+        }
+        if (rpc === "horario_conteo_operativo_local") {
+          if (backend.sin214) return error("PGRST202", "Could not find the function");
+          return ok(backend.horario && conteos.has(`${body.p_ubicacion}|${body.p_fecha_operacional}`) ? [backend.horario] : []);
+        }
         if (rpc === "registrar_conteo_operativo_local") {
           if (backend.registrar.estado_resultado === "CREADO") conteos.add(`${body.p_ubicacion}|${body.p_fecha_operacional}`);
           return ok([backend.registrar]);
@@ -232,8 +245,10 @@ for (const pagina of PAGINAS) {
     input(d, "inv", "balde").value = "10";
     await w.guardarConteoMasivo("inv", "inventario");
     await esperar();
-    const rpcs = sinIntentos(llamadas).map((l) => l.rpc).filter((r) => r !== "capturas_conteo_operativo_vigente");
-    assert.deepEqual(rpcs, ["registrar_conteo_operativo_local"]);
+    const rpcs = sinIntentos(llamadas).map((l) => l.rpc)
+      .filter((r) => !["capturas_conteo_operativo_vigente", "horario_conteo_operativo_local"].includes(r));
+    // 214: hora de inicio y revisión de recepciones (lecturas/sesión) antes del ÚNICO guardado
+    assert.deepEqual(rpcs, ["iniciar_conteo_operativo_local", "revisar_recepciones_conteo_operativo", "registrar_conteo_operativo_local"]);
     const reg = llamadas.find((l) => l.rpc === "registrar_conteo_operativo_local");
     assert.equal(reg.body.p_ubicacion, "BODEGA");
     assert.deepEqual(Object.fromEntries(reg.body.p_lineas.map((l) => [l.insumo_id, l.cantidad])), { kk: 3, balde: 10 });
@@ -289,5 +304,149 @@ for (const pagina of PAGINAS) {
     assert.equal(reg.body.p_fecha_operacional, "2026-10-05");
     const consultas = llamadas.filter((l) => l.rpc === "capturas_conteo_operativo_vigente").map((l) => l.body.p_fecha_operacional);
     assert.ok(consultas.length > 0 && consultas.every((f) => f === "2026-10-05"));
+  });
+}
+
+
+// ===================================================================
+// 214: horas del servidor y recepciones posiblemente no incluidas
+// (backend real ensayado en docpop-pre0: scripts/ensayo_214_conteos_recepciones.py)
+// ===================================================================
+const SESION = { sesion_id: "sesion-1", iniciado_at: "2026-10-13T16:58:00Z" }; // 13:58 en Chile (UTC-3)
+const RECEPCION_1310 = {
+  movimiento_linea_id: "linea-30-sacos", articulo_nombre: "Maíz Butterfly", cantidad_original: 30, unidad_nombre: "Saco",
+  recibido_at: "2026-10-13T16:24:51Z", folio: "11332", durante_conteo: false,
+  mensaje: "Se registró una recepción de 30 sacos de Maíz Butterfly. ¿Esta mercadería está incluida en tu conteo?",
+};
+const CREADO = { conteo_id: "nuevo", estado_resultado: "CREADO", n_lineas: 1, articulos_omitidos: [] };
+const modal = (d) => d.getElementById("modal-recepciones-conteo");
+const boton = (d, texto) => [...modal(d).querySelectorAll("button")].find((b) => b.textContent === texto);
+const registrarDe = (llamadas) => llamadas.filter((l) => l.rpc === "registrar_conteo_operativo_local");
+
+async function contar(pagina, backend, cantidad = "2") {
+  const ctx = await abrir(pagina, { conteos: [], registrar: CREADO, ...backend });
+  await ctx.elegir("inv", HOY);
+  ctx.d.getElementById("inv-btn-generar").click();
+  await esperar();
+  input(ctx.d, "inv", "kk").value = cantidad;
+  return ctx;
+}
+
+for (const pagina of PAGINAS) {
+  test(`${pagina.codigo} 10) Generar registra la hora de inicio del SERVIDOR y la muestra discreta en hora de Chile`, async () => {
+    const { d, w, llamadas } = await contar(pagina, { iniciar: SESION });
+    assert.equal(d.getElementById("inv-horas-conteo").textContent, "Inicio 13:58 (hora de Chile)");
+    const ini = llamadas.find((l) => l.rpc === "iniciar_conteo_operativo_local");
+    assert.deepEqual(Object.keys(ini.body).sort(), ["p_fecha_operacional", "p_local_codigo", "p_responsable_informado", "p_ubicacion"]);
+    await w.guardarConteoMasivo("inv", "inventario");
+    // sin recepciones dudosas: sin pregunta, mismo guardado de siempre + la sesión
+    assert.equal(modal(d), null);
+    const reg = registrarDe(llamadas);
+    assert.equal(reg.length, 1);
+    assert.equal(reg[0].body.p_sesion_id, "sesion-1");
+    assert.equal("p_decisiones_recepcion" in reg[0].body, false);
+  });
+
+  test(`${pagina.codigo} 11) caso MPO 13-10: pregunta por los 30 sacos; "No, no está incluida" viaja al guardado`, async () => {
+    const { d, w, llamadas } = await contar(pagina, { iniciar: SESION, revisar: [RECEPCION_1310] });
+    const guardado = w.guardarConteoMasivo("inv", "inventario");
+    await esperar();
+    assert.ok(modal(d));
+    assert.equal(modal(d).querySelector(".pregunta-recepcion").textContent, RECEPCION_1310.mensaje);
+    assert.match(modal(d).textContent, /Recibida a las 13:24 · folio 11332/);
+    assert.equal(registrarDe(llamadas).length, 0); // nada se guarda mientras se pregunta
+    boton(d, "No, no está incluida").click();
+    await guardado;
+    assert.equal(modal(d), null);
+    const reg = registrarDe(llamadas);
+    assert.equal(reg.length, 1);
+    assert.deepEqual(reg[0].body.p_decisiones_recepcion, [{ movimiento_linea_id: "linea-30-sacos", incluida: false }]);
+    assert.deepEqual(Object.fromEntries(reg[0].body.p_lineas.map((l) => [l.insumo_id, l.cantidad])), { kk: 2 }); // el conteo no cambia
+  });
+
+  test(`${pagina.codigo} 12) "Sí, está incluida" y varias recepciones: una pregunta por recepción, en orden`, async () => {
+    const otra = { ...RECEPCION_1310, movimiento_linea_id: "linea-10", cantidad_original: 10, folio: null,
+                   mensaje: "Se registró una recepción de 10 sacos de Maíz Butterfly. ¿Esta mercadería está incluida en tu conteo?" };
+    const { d, w, llamadas } = await contar(pagina, { iniciar: SESION, revisar: [RECEPCION_1310, otra] });
+    const guardado = w.guardarConteoMasivo("inv", "inventario");
+    await esperar();
+    assert.match(modal(d).textContent, /1 de 2/);
+    boton(d, "Sí, está incluida").click();
+    await esperar();
+    assert.match(modal(d).textContent, /10 sacos/);
+    assert.match(modal(d).textContent, /2 de 2/);
+    boton(d, "No, no está incluida").click();
+    await guardado;
+    assert.deepEqual(registrarDe(llamadas)[0].body.p_decisiones_recepcion,
+      [{ movimiento_linea_id: "linea-30-sacos", incluida: true }, { movimiento_linea_id: "linea-10", incluida: false }]);
+  });
+
+  test(`${pagina.codigo} 13) "Volver al conteo": no se guarda nada y las cantidades siguen en pantalla`, async () => {
+    const { d, w, llamadas, toasts } = await contar(pagina, { iniciar: SESION, revisar: [RECEPCION_1310] });
+    const guardado = w.guardarConteoMasivo("inv", "inventario");
+    await esperar();
+    [...modal(d).querySelectorAll("button")].find((b) => b.dataset.volver === "true").click();
+    await guardado;
+    assert.equal(registrarDe(llamadas).length, 0);
+    assert.equal(input(d, "inv", "kk").value, "2");
+    assert.ok(toasts.some((t) => t.msg.includes("Conteo sin guardar")));
+    assert.equal(d.querySelector("#inv-conteo-wrap .btn-primary").disabled, false);
+  });
+
+  test(`${pagina.codigo} 14) si la revisión falla, guarda igual sin respuestas (el servidor la deja PENDIENTE)`, async () => {
+    const { d, w, llamadas } = await contar(pagina, { iniciar: SESION, revisarFalla: true });
+    await w.guardarConteoMasivo("inv", "inventario");
+    assert.equal(modal(d), null);
+    const reg = registrarDe(llamadas);
+    assert.equal(reg.length, 1);
+    assert.equal("p_decisiones_recepcion" in reg[0].body, false);
+  });
+
+  test(`${pagina.codigo} 15) backend sin 214: el guardado envía exactamente los 6 parámetros de siempre`, async () => {
+    const { d, w, llamadas } = await contar(pagina, { sin214: true });
+    assert.equal(d.getElementById("inv-horas-conteo"), null);
+    await w.guardarConteoMasivo("inv", "inventario");
+    assert.deepEqual(Object.keys(registrarDe(llamadas)[0].body).sort(),
+      ["p_fecha_operacional", "p_lineas", "p_local_codigo", "p_observacion", "p_responsable_informado", "p_ubicacion"]);
+  });
+
+  test(`${pagina.codigo} 16) conteo guardado: muestra inicio, término y aprobación en hora de Chile, y avisa pendientes`, async () => {
+    const { d, elegir } = await abrir(pagina, {
+      conteos: [`BODEGA|${HOY}`],
+      horario: { conteo_id: "c", version: 1, iniciado_at: "2026-10-13T16:58:00Z", finalizado_at: "2026-10-13T17:14:29Z",
+                 aprobado_at: "2026-10-13T17:14:29Z", recepciones: [{ decision: "PENDIENTE" }] },
+    });
+    await elegir("inv", HOY);
+    await esperar();
+    assert.equal(d.getElementById("inv-horas-guardado").textContent,
+      "Inicio 13:58 · Término 14:14 · Aprobado 14:14 (hora de Chile) · 1 recepción(es) por revisar con administración");
+  });
+
+  test(`${pagina.codigo} 17) conteo anterior a 214 (sin hora de inicio): muestra solo término y aprobación`, async () => {
+    const { d, elegir } = await abrir(pagina, {
+      conteos: [`BODEGA|${HOY}`],
+      horario: { conteo_id: "c", version: 1, iniciado_at: null, finalizado_at: "2026-10-13T17:14:29Z", aprobado_at: "2026-10-13T17:14:29Z", recepciones: [] },
+    });
+    await elegir("inv", HOY);
+    await esperar();
+    assert.equal(d.getElementById("inv-horas-guardado").textContent, "Término 14:14 · Aprobado 14:14 (hora de Chile)");
+  });
+
+  test(`${pagina.codigo} 18) una corrección no abre sesión ni pregunta por recepciones`, async () => {
+    const { d, w, elegir, llamadas } = await abrir(pagina, { conteos: [`BODEGA|${HOY}`], registrar: {}, iniciar: SESION, revisar: [RECEPCION_1310] });
+    await elegir("inv", HOY);
+    d.getElementById("inv-btn-editar").click();
+    await esperar();
+    await w.guardarConteoMasivo("inv", "inventario");
+    assert.equal(modal(d), null);
+    assert.equal(llamadas.some((l) => ["iniciar_conteo_operativo_local", "revisar_recepciones_conteo_operativo"].includes(l.rpc)), false);
+    assert.equal(llamadas.filter((l) => l.rpc === "corregir_conteo_operativo_local").length, 1);
+  });
+
+  test(`${pagina.codigo} 19) zona horaria: 13-10 16:24 UTC es 13:24 en Chile (verano, UTC-3); en julio (UTC-4) 16:24 UTC es 12:24`, async () => {
+    const { w } = await abrir(pagina, { conteos: [] });
+    assert.equal(w.horaChile("2026-10-13T16:24:51Z"), "13:24");
+    assert.equal(w.horaChile("2026-07-13T16:24:51Z"), "12:24");
+    assert.equal(w.horaChile(null), null);
   });
 }

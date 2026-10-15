@@ -3737,7 +3737,7 @@ function ordenarConGruposVisuales(insumosOrdenados) {
   return resultado;
 }
 
-function generarConteoInventario(prefix) {
+function generarConteoInventario(prefix, opciones = {}) {
   salirModoCorreccion(prefix);
   const fecha = document.getElementById(`${prefix}-fecha`).value;
   const local = document.getElementById(`${prefix}-local`).value;
@@ -3782,6 +3782,8 @@ function generarConteoInventario(prefix) {
   document.getElementById(`${prefix}-conteo-wrap`).style.display = 'block';
   // Focus en primer input
   setTimeout(() => tbody.querySelector('.conteo-input')?.focus(), 100);
+  // 214: la hora de inicio la registra el servidor (no en una corrección).
+  if (!opciones.sinSesion) iniciarSesionConteo(prefix, fecha, responsable);
 }
 
 // Sprint Migración de Conteos a Core (132): la escritura PRIMARIA del
@@ -3833,6 +3835,151 @@ async function registrarIntentoConteo(ubicacion, fecha, responsable, resultado, 
 // fechas las corrige un administrador (el backend lo exige). Un conteo nuevo
 // (Generar conteo) nunca entra en este modo.
 const CORRECCION_CONTEO = {};
+
+// 214: horas del conteo y recepciones posiblemente no incluidas en él.
+// La hora de inicio la pone el SERVIDOR al generar el conteo (sesión); la de
+// término y la aprobación, al guardar. El trabajador no escribe horas. Se
+// muestran en hora de Chile; la base guarda UTC. Si el backend todavía no
+// tiene 214, todo esto se omite y el guardado sigue igual que antes.
+const SESION_CONTEO = {};
+
+function horaChile(iso) {
+  if (!iso) return null;
+  const p = partesFechaChile(new Date(iso));
+  return `${p.hour}:${p.minute}`;
+}
+
+function textoHorasConteo(prefix, contenedorId, texto) {
+  const contenedor = document.getElementById(contenedorId);
+  if (!contenedor) return;
+  let el = document.getElementById(`${prefix}-horas-${contenedorId.endsWith('wrap') ? 'conteo' : 'guardado'}`);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = `${prefix}-horas-${contenedorId.endsWith('wrap') ? 'conteo' : 'guardado'}`;
+    el.className = 'hint';
+    el.style.cssText = 'margin:4px 0 8px;color:var(--text-muted);font-size:12px;';
+    if (contenedorId.endsWith('wrap')) contenedor.insertBefore(el, contenedor.firstChild);
+    else contenedor.appendChild(el);
+  }
+  el.textContent = texto;
+}
+
+async function iniciarSesionConteo(prefix, fecha, responsable) {
+  const ubicacion = prefix === 'inv' ? 'BODEGA' : 'LOCAL';
+  delete SESION_CONTEO[prefix];
+  try {
+    const r = await sbRpc('iniciar_conteo_operativo_local', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha,
+      p_responsable_informado: responsable
+    });
+    const fila = Array.isArray(r) ? r[0] : r;
+    if (!fila || !fila.sesion_id) return;
+    SESION_CONTEO[prefix] = { id: fila.sesion_id, iniciadoAt: fila.iniciado_at, fecha, ubicacion };
+    textoHorasConteo(prefix, `${prefix}-conteo-wrap`, `Inicio ${horaChile(fila.iniciado_at)} (hora de Chile)`);
+  } catch (e) {
+    console.warn('[conteo] no se pudo registrar la hora de inicio (no afecta el guardado):', e.message);
+  }
+}
+
+// Solo pregunta si el servidor detecta una recepción posiblemente NO incluida.
+// Devuelve [] si no hay nada que preguntar, las respuestas, null si no se pudo
+// consultar (el servidor la deja PENDIENTE para administración, sin ajustar el
+// stock) o 'CANCELADO' si el trabajador vuelve al conteo.
+async function revisarRecepcionesConteo(prefix, ubicacion, fecha, lineasCore) {
+  const sesion = SESION_CONTEO[prefix];
+  let candidatas;
+  try {
+    candidatas = await sbRpc('revisar_recepciones_conteo_operativo', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha,
+      p_lineas: lineasCore,
+      p_sesion_id: sesion && sesion.fecha === fecha && sesion.ubicacion === ubicacion ? sesion.id : null
+    });
+  } catch (e) {
+    console.warn('[conteo] no se pudo revisar recepciones (quedan para revisión de administración):', e.message);
+    return null;
+  }
+  if (!Array.isArray(candidatas) || candidatas.length === 0) return [];
+  return preguntarRecepciones(candidatas);
+}
+
+function preguntarRecepciones(candidatas) {
+  return new Promise(resolve => {
+    const decisiones = [];
+    const fondo = document.createElement('div');
+    fondo.id = 'modal-recepciones-conteo';
+    fondo.setAttribute('role', 'dialog');
+    fondo.setAttribute('aria-modal', 'true');
+    fondo.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:12px;';
+    const caja = document.createElement('div');
+    caja.style.cssText = 'width:100%;max-width:440px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.35);';
+    fondo.appendChild(caja);
+    const cerrar = (valor) => { fondo.remove(); resolve(valor); };
+    const mostrar = (i) => {
+      if (i >= candidatas.length) { cerrar(decisiones); return; }
+      const c = candidatas[i];
+      caja.innerHTML = '';
+      const titulo = document.createElement('div');
+      titulo.className = 'pregunta-recepcion';
+      titulo.style.cssText = 'font-weight:700;font-size:16px;line-height:1.35;margin-bottom:6px;';
+      titulo.textContent = c.mensaje;
+      const detalle = document.createElement('div');
+      detalle.className = 'hint';
+      detalle.style.cssText = 'margin-bottom:10px;';
+      detalle.textContent = [
+        `Recibida a las ${horaChile(c.recibido_at)}`,
+        c.folio ? `folio ${c.folio}` : null,
+        candidatas.length > 1 ? `${i + 1} de ${candidatas.length}` : null
+      ].filter(Boolean).join(' · ');
+      const opcion = (texto, incluida, clase) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `btn ${clase}`;
+        b.style.cssText = 'width:100%;min-height:48px;font-size:16px;margin-top:8px;';
+        b.textContent = texto;
+        b.dataset.incluida = String(incluida);
+        b.onclick = () => { decisiones.push({ movimiento_linea_id: c.movimiento_linea_id, incluida }); mostrar(i + 1); };
+        return b;
+      };
+      const volver = document.createElement('button');
+      volver.type = 'button';
+      volver.className = 'btn btn-ghost';
+      volver.style.cssText = 'width:100%;min-height:44px;margin-top:10px;background:transparent;border:none;color:var(--text-muted);font-weight:500;text-decoration:underline;';
+      volver.textContent = 'Volver al conteo';
+      volver.dataset.volver = 'true';
+      volver.onclick = () => cerrar('CANCELADO');
+      caja.append(titulo, detalle, opcion('Sí, está incluida', true, 'btn-primary'), opcion('No, no está incluida', false, 'btn-ghost'), volver);
+      caja.querySelector('button')?.focus();
+    };
+    document.body.appendChild(fondo);
+    mostrar(0);
+  });
+}
+
+async function mostrarHorarioGuardado(prefix, ubicacion, fecha) {
+  try {
+    const r = await sbRpc('horario_conteo_operativo_local', {
+      p_local_codigo: LOCAL_CODIGO_CONTEO,
+      p_ubicacion: ubicacion,
+      p_fecha_operacional: fecha
+    });
+    const fila = Array.isArray(r) ? r[0] : r;
+    if (!fila) return;
+    const partes = [
+      fila.iniciado_at ? `Inicio ${horaChile(fila.iniciado_at)}` : null,
+      fila.finalizado_at ? `Término ${horaChile(fila.finalizado_at)}` : null,
+      fila.aprobado_at ? `Aprobado ${horaChile(fila.aprobado_at)}` : null
+    ].filter(Boolean);
+    const pendientes = (fila.recepciones || []).filter(x => x.decision === 'PENDIENTE').length;
+    textoHorasConteo(prefix, `${prefix}-estado-conteo`, `${partes.join(' · ')} (hora de Chile)` +
+      (pendientes ? ` · ${pendientes} recepción(es) por revisar con administración` : ''));
+  } catch (e) {
+    // backend sin 214: no hay horas que mostrar
+  }
+}
 
 function mensajeErrorRpc(e) {
   try { return JSON.parse(e.message).message || e.message; } catch (_) { return e.message; }
@@ -3899,6 +4046,7 @@ async function actualizarEstadoConteo(prefix) {
         : 'Este conteo no se puede editar desde aquí -- su corrección la hace un administrador.');
   panel.style.display = '';
   btnGenerar.style.display = 'none';
+  mostrarHorarioGuardado(prefix, ubicacion, fecha);
 }
 
 ['inv', 'invl'].forEach(prefix => {
@@ -3935,7 +4083,7 @@ async function iniciarCorreccionConteo(prefix, ubicacion, fecha, local) {
     toast(`❌ No hay cantidades guardadas del conteo de ${local} (${etiqueta}) del ${fecha}.`, true);
     return false;
   }
-  generarConteoInventario(prefix); // formulario limpio, mismo orden y mismos insumos que un conteo normal
+  generarConteoInventario(prefix, { sinSesion: true }); // formulario limpio, mismo orden y mismos insumos que un conteo normal
   const inputs = new Map([...document.querySelectorAll(`#${prefix}-conteo-tbody .conteo-input`)].map(inp => [inp.dataset.id, inp]));
   const fuera = capturas.filter(c => !inputs.has(c.insumo_id));
   if (fuera.length > 0) {
@@ -4043,6 +4191,19 @@ async function guardarConteoMasivo(prefix, tabla) {
 
   const ubicacion = tabla === 'inventario' ? 'BODEGA' : 'LOCAL';
 
+  // 214: ¿alguna recepción confirmada podría no estar en este conteo? Solo se
+  // pregunta cuando el servidor lo detecta; si no, el guardado es igual que siempre.
+  const decisionesRecepcion = await revisarRecepcionesConteo(prefix, ubicacion, fecha, lineasCore);
+  if (decisionesRecepcion === 'CANCELADO') {
+    if (btn) { btn.disabled = false; btn.textContent = btnTextoOriginal; }
+    toast('Conteo sin guardar. Tus cantidades siguen en pantalla.', true);
+    return;
+  }
+  const sesion = SESION_CONTEO[prefix];
+  const extras214 = {};
+  if (sesion && sesion.fecha === fecha && sesion.ubicacion === ubicacion) extras214.p_sesion_id = sesion.id;
+  if (Array.isArray(decisionesRecepcion) && decisionesRecepcion.length > 0) extras214.p_decisiones_recepcion = decisionesRecepcion;
+
   // IMPORTANTE: se espera la respuesta real de Core (registrar_conteo_
   // operativo_local) antes de decir "guardado". Si falla, NADA queda
   // persistido (ni Core ni legado -- una sola transacción atómica), y
@@ -4054,7 +4215,8 @@ async function guardarConteoMasivo(prefix, tabla) {
       p_fecha_operacional: fecha,
       p_responsable_informado: responsable,
       p_lineas: lineasCore,
-      p_observacion: null
+      p_observacion: null,
+      ...extras214
     });
     const fila = Array.isArray(resultado) ? resultado[0] : resultado;
     if (!fila || !fila.estado_resultado) {
@@ -4087,6 +4249,7 @@ async function guardarConteoMasivo(prefix, tabla) {
       toast('✅ Inventario guardado correctamente');
     }
     registrarIntentoConteo(ubicacion, fecha, responsable, fila.estado_resultado, true, fila.conteo_id, null);
+    delete SESION_CONTEO[prefix];
     actualizarEstadoConteo(prefix);
 
     // Refresco de la vista local (pestaña "Inventario Bodega/Local" de
