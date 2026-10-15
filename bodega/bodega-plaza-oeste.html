@@ -2235,6 +2235,7 @@ async function cargarRecepcionesRecientes(local) {
     console.warn('[recepciones recientes] no se pudo cargar.', e);
     DB.recepcionesRecientes = [];
   }
+  DB.facturasRecepciones = await cargarFacturasRecepciones(local);
   try {
     // Compras Rendidas por Trabajador (168/169) -- fuente SEPARADA e
     // independiente, nunca mezclada en listar_recepciones_bodega (112/
@@ -2248,6 +2249,65 @@ async function cargarRecepcionesRecientes(local) {
   renderRecepcionesRecientes();
 }
 
+// ══════════════════════════════════════════════════
+// 216: FACTURA DE CADA PRODUCTO -- solo presentación. Una recepción física
+// puede tener productos de distintas facturas (asignación documental de
+// administración, migración 215). facturas_recepciones_bodega (solo
+// lectura, mismo local y misma ventana que listar_recepciones_bodega)
+// entrega el folio de cada producto. Si no está disponible o algo no
+// calza, la recepción se muestra exactamente como siempre. Nunca cambia
+// la recepción, su identificador ni completar/corregir.
+// ══════════════════════════════════════════════════
+async function cargarFacturasRecepciones(local) {
+  try {
+    const filas = await sbRpc('facturas_recepciones_bodega', { p_local_codigo: local, p_dias: 30 });
+    const mapa = new Map();
+    (Array.isArray(filas) ? filas : []).forEach(f => {
+      const k = `${f.movimiento_id}|${f.articulo_maestro_id}`;
+      if (!mapa.has(k)) mapa.set(k, new Set());
+      if (f.folio) mapa.get(k).add(String(f.folio));
+    });
+    return mapa;
+  } catch (e) {
+    console.warn('[recepciones] sin detalle de facturas (se muestra como siempre):', e.message);
+    return new Map();
+  }
+}
+
+function facturaDeLinea(ev, l) {
+  const s = DB.facturasRecepciones && DB.facturasRecepciones.get(`${ev.movimiento_id}|${l.articulo_maestro_id}`);
+  return s && s.size === 1 ? [...s][0] : null;
+}
+
+// Folios de la recepción si TODAS sus líneas tienen una factura conocida; si no, null (vista de siempre).
+function facturasDeRecepcion(r) {
+  const folios = new Set();
+  for (const ev of (r.eventos || [])) {
+    for (const l of (ev.lineas || [])) {
+      const f = facturaDeLinea(ev, l);
+      if (!f) return null;
+      folios.add(f);
+    }
+  }
+  return folios.size ? [...folios].sort((a, b) => Number(a) - Number(b) || a.localeCompare(b)) : null;
+}
+
+function unirFolios(folios) {
+  return folios.length <= 1 ? folios.join('') : folios.slice(0, -1).join(', ') + ' y ' + folios[folios.length - 1];
+}
+
+// Factura por producto para la corrección (por nombre + unidad, como netearLineasRecepcion).
+function facturasPorProductoRecepcion(r) {
+  const mapa = new Map();
+  (r.eventos || []).forEach(ev => (ev.lineas || []).forEach(l => {
+    const key = l.articulo_nombre + '||' + l.unidad_codigo;
+    if (!mapa.has(key)) mapa.set(key, new Set());
+    const f = facturaDeLinea(ev, l);
+    if (f) mapa.get(key).add(f);
+  }));
+  return mapa;
+}
+
 function renderRecepcionesRecientes() {
   const cont = document.getElementById('recepciones-recientes-lista');
   if (!cont) return;
@@ -2258,6 +2318,9 @@ function renderRecepcionesRecientes() {
     return;
   }
   const htmlFacturas = facturas.map((r, idx) => {
+    // 216: solo si la recepción tiene productos de 2 o más facturas; si no, igual que siempre.
+    const folios = facturasDeRecepcion(r);
+    const multi = !!folios && folios.length > 1;
     const estadoTexto = r.estado_documental === 'VINCULADO' ? '✓ En RCV' : '○ Pendiente RCV';
     // Sprint 117: responsable REAL del primer evento (nunca el último,
     // nunca auth.uid(), nunca la cuenta técnica de sincronización) --
@@ -2269,9 +2332,15 @@ function renderRecepcionesRecientes() {
     const eventosHtml = (r.eventos || []).map(ev => {
       const titulo = ev.es_complemento ? 'COMPLEMENTO' : 'RECEPCIÓN ORIGINAL';
       const responsableEvento = ev.responsable_informado || 'Responsable no identificado';
-      const lineasHtml = (ev.lineas || []).map(l =>
-        `<li>${l.articulo_nombre} · ${l.cantidad_original} ${l.unidad_codigo}</li>`
-      ).join('');
+      const lineaLi = l => `<li>${l.articulo_nombre} · ${l.cantidad_original} ${l.unidad_codigo}</li>`;
+      const lineasHtml = multi
+        ? folios.map(folio => {
+            const delGrupo = (ev.lineas || []).filter(l => facturaDeLinea(ev, l) === folio);
+            if (delGrupo.length === 0) return '';
+            return `<li class="factura-grupo" style="list-style:none;margin:8px 0 2px -18px;font-size:12px;font-weight:700;color:var(--yellow);">Factura ${folio}</li>`
+              + delGrupo.map(lineaLi).join('');
+          }).join('')
+        : (ev.lineas || []).map(lineaLi).join('');
       return `
         <div class="recepcion-evento" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border,#333);">
           <div style="font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--text-muted);">${titulo}</div>
@@ -2283,7 +2352,7 @@ function renderRecepcionesRecientes() {
       <div class="recepcion-reciente-item" style="border:1px solid var(--border,#333);border-radius:8px;margin-bottom:8px;overflow:hidden;">
         <div class="recepcion-reciente-head" style="padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="toggleRecepcionReciente(${idx})">
           <div>
-            <strong>Factura ${r.folio || '—'} · ${r.proveedor_nombre || 'Proveedor no identificado'}</strong>
+            <strong>${multi ? 'Facturas ' + unirFolios(folios) : 'Factura ' + (r.folio || '—')} · ${r.proveedor_nombre || 'Proveedor no identificado'}</strong>${multi ? `<div><span class="perfil-badge badge-po facturas-asociadas" style="margin-top:4px;">${folios.length} facturas asociadas</span></div>` : ''}
             <div class="hint">${r.fecha} · ${r.productos_total} producto${r.productos_total===1?'':'s'} · ${estadoTexto}</div>
             <div class="hint">Ingresada por: ${responsableIngreso}</div>
           </div>
@@ -2439,6 +2508,15 @@ function prepararCorregirRecepcion(idx) {
   const r = DB.recepcionesRecientes[idx];
   if (!r) return;
   const lineas = netearLineasRecepcion(r).map(l => ({ ...l, cantidadNueva: l.cantidadOriginal, eliminar: false, esNueva: false }));
+  // 216: con varias facturas, cada producto muestra la suya (solo informativo).
+  const folios = facturasDeRecepcion(r);
+  if (folios && folios.length > 1) {
+    const porProducto = facturasPorProductoRecepcion(r);
+    lineas.forEach(l => {
+      const s = porProducto.get(l.articuloNombre + '||' + l.unidad);
+      if (s && s.size) l.factura = [...s].sort().join(' y ');
+    });
+  }
   correccionActual = {
     documentoIdentidadKey: r.documento_identidad_key,
     folio: r.folio || '', proveedorNombre: r.proveedor_nombre || '', tipoDocumento: r.tipo_documento || '',
@@ -2472,7 +2550,7 @@ function renderCorrLineasTabla() {
   }
   cont.innerHTML = correccionActual.lineas.map((l, i) => `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);${l.eliminar ? 'opacity:.45;' : ''}">
-      <span style="flex:1;font-size:13px;">${l.articuloNombre}${l.eliminar ? ' <b>(se elimina)</b>' : ''}</span>
+      <span style="flex:1;font-size:13px;">${l.articuloNombre}${l.eliminar ? ' <b>(se elimina)</b>' : ''}${l.factura ? `<div class="hint" style="color:var(--yellow);">Factura ${l.factura}</div>` : ''}</span>
       <input type="number" min="0" step="any" value="${l.cantidadNueva}" ${l.eliminar ? 'disabled' : ''}
         style="width:80px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:6px;color:var(--text);text-align:right;"
         onchange="corrActualizarCantidad(${i}, this.value)">
@@ -2538,11 +2616,12 @@ function corrPrevisualizar() {
   if (cambiosLinea.length > 0) {
     html += '<div style="margin-top:8px;font-weight:700;">Artículos</div>';
     cambiosLinea.forEach(l => {
-      if (l.eliminar) html += `<div>🗑 ${l.articuloNombre}: ${l.cantidadOriginal} ${l.unidad} → se elimina (stock -${l.cantidadOriginal} ${l.unidad})</div>`;
-      else if (l.esNueva) html += `<div>➕ ${l.articuloNombre}: no estaba → ${l.cantidadNueva} ${l.unidad} (stock +${l.cantidadNueva} ${l.unidad})</div>`;
+      const nombre = l.articuloNombre + (l.factura ? ` (factura ${l.factura})` : '');
+      if (l.eliminar) html += `<div>🗑 ${nombre}: ${l.cantidadOriginal} ${l.unidad} → se elimina (stock -${l.cantidadOriginal} ${l.unidad})</div>`;
+      else if (l.esNueva) html += `<div>➕ ${nombre}: no estaba → ${l.cantidadNueva} ${l.unidad} (stock +${l.cantidadNueva} ${l.unidad})</div>`;
       else {
         const delta = l.cantidadNueva - l.cantidadOriginal;
-        html += `<div>✎ ${l.articuloNombre}: ${l.cantidadOriginal} ${l.unidad} → ${l.cantidadNueva} ${l.unidad} (stock ${delta > 0 ? '+' : ''}${delta} ${l.unidad})</div>`;
+        html += `<div>✎ ${nombre}: ${l.cantidadOriginal} ${l.unidad} → ${l.cantidadNueva} ${l.unidad} (stock ${delta > 0 ? '+' : ''}${delta} ${l.unidad})</div>`;
       }
     });
   }
@@ -2565,9 +2644,10 @@ function corrGenerarResumenTexto() {
   if (cambios.length > 0) {
     texto += 'Artículos:\n';
     cambios.forEach(l => {
-      if (l.eliminar) texto += `  - Eliminar: ${l.articuloNombre} (${l.cantidadOriginal} ${l.unidad})\n`;
-      else if (l.esNueva) texto += `  - Agregar: ${l.articuloNombre} · ${l.cantidadNueva} ${l.unidad}\n`;
-      else texto += `  - ${l.articuloNombre}: ${l.cantidadOriginal} → ${l.cantidadNueva} ${l.unidad}\n`;
+      const nombre = l.articuloNombre + (l.factura ? ` (factura ${l.factura})` : '');
+      if (l.eliminar) texto += `  - Eliminar: ${nombre} (${l.cantidadOriginal} ${l.unidad})\n`;
+      else if (l.esNueva) texto += `  - Agregar: ${nombre} · ${l.cantidadNueva} ${l.unidad}\n`;
+      else texto += `  - ${nombre}: ${l.cantidadOriginal} → ${l.cantidadNueva} ${l.unidad}\n`;
     });
   }
   texto += `Solicitado por: ${perfilActual?.nombre || 'trabajador de bodega'}\n`;
